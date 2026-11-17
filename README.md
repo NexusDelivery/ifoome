@@ -133,4 +133,21 @@ O projeto será construído de maneira incremental ao longo de cinco etapas subs
 
 ---
 
+## 10. Documentação de Produto (Etapa 1 — Product Owner)
+
+As especificações detalhadas do MVP estão documentadas nos seguintes arquivos de referência:
+
+- [`PRD.md`](./PRD.md) — Requisitos funcionais (Cardápio, Pedidos, Resumo Diário e IA complementar), requisitos não funcionais e matriz de priorização.
+- [`Regras-de-Negocio.md`](./Regras-de-Negocio.md) — Regras de disponibilidade, loja aberta/fechada, taxa de entrega vs. retirada, validações de pedido, ciclo de status e cálculo de vendas.
+- [`Fluxos-do-Usuario.md`](./Fluxos-do-Usuario.md) — Jornadas passo a passo do proprietário (Seu Raimundo) e do cliente, além dos fluxos de exceção.
+
+### Definições padrão consolidadas para o MVP
+- **Status dos pedidos:** `Recebido` → `Em preparo` → `Saiu para entrega` *(ou `Pronto para retirada` quando retirada no local)* → `Concluído` / `Cancelado`.
+- **Categorias iniciais do cardápio:** `Marmitas`, `Pratos do Dia`, `Acompanhamentos`, `Bebidas`, `Sobremesas`.
+- **Formas de pagamento aceitas:** `Pix`, `Dinheiro` (com campo opcional de troco) e `Cartão (Débito/Crédito)` no ato da entrega/retirada.
+- **Entrega e retirada:** Entrega com taxa fixa configurável (padrão inicial: `R$ 5,00`) e endereço obrigatório; Retirada no local gratuita (`R$ 0,00`) sem exigência de endereço.
+
+---
+
 *Este documento serve como referência central de contexto para todas as etapas do desenvolvimento do **iFoome Delivery** e deverá ser atualizado conforme novas decisões forem consolidadas, preservando os princípios estabelecidos desde a concepção.*
+
