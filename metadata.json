@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "iFoome Delivery",
+  "description": "Cardápio digital e painel simplificado de pedidos para pequenos restaurantes e marmitarias.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

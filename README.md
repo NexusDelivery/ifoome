@@ -149,5 +149,24 @@ As especificações detalhadas do MVP estão documentadas nos seguintes arquivos
 
 ---
 
+## 11. Identidade Visual e UX/UI (Etapa 2 — UX/UI Designer)
+
+### Identidade de Marca e Paleta
+- **Marca:** **iFoome Delivery** com símbolo próprio (*cloche* estilizado) e destaque tipográfico para **iFoome**.
+- **Paleta oficial:**
+  - Laranja Energia: `#F47B35` (ações de adição, destaques positivos e ícones de apoio)
+  - Vermelho Apetite: `#D94B3D` (botões primários de conversão, marca e alertas ativos)
+  - Creme Acolhedor: `#FFF8EF` (fundo principal leve para leitura confortável)
+  - Marrom Escuro: `#382B25` (tipografia principal de alto contraste e cabeçalhos)
+- **Tipografia:** `Bricolage Grotesque` para títulos e marca + `Plus Jakarta Sans` para textos e formulários, com algarismos tabulares (`tabular-nums`) em todos os preços, códigos e indicadores.
+
+### Arquitetura de Navegação e Responsividade
+- **Área Pública (Cliente):** cabeçalho enxuto, banner do estabelecimento, filtros por categoria e busca, grade de pratos disponíveis, modal de detalhes/observações, sacola lateral/sheet, tela dedicada de finalização e tela de confirmação com link complementar para WhatsApp.
+- **Área Administrativa (Seu Raimundo):** menu lateral fixo em telas grandes (`lg+`) e barra de abas inferior ergonômica no celular (zona natural do polegar, alvos de toque mínimos de `44px`), contemplando **Visão Geral**, **Pedidos**, **Cardápio** e **Configurações**.
+- **Acessibilidade:** todos os status combinam ícone e texto explícito (nunca dependem apenas da cor), além de confirmações antes de ações destrutivas (cancelar pedido ou excluir prato).
+
+---
+
 *Este documento serve como referência central de contexto para todas as etapas do desenvolvimento do **iFoome Delivery** e deverá ser atualizado conforme novas decisões forem consolidadas, preservando os princípios estabelecidos desde a concepção.*
+
 
