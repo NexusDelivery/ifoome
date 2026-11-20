@@ -1,9 +1,9 @@
-name: Deploy iFoome Delivery (develop)
+name: Deploy iFoome Delivery (main)
 
 on:
   push:
     branches:
-      - develop
+      - main
   workflow_dispatch:
 
 permissions:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build e validação (develop)
+    name: Build e validação (main)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout do repositório
