@@ -3,12 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
-import {
-  INITIAL_ORDERS,
-  INITIAL_PRODUCTS,
-  INITIAL_STORE_SETTINGS,
-} from './data/mockData';
+import { useEffect, useState } from 'react';
 import {
   AdminTab,
   AppArea,
@@ -20,19 +15,41 @@ import {
   Product,
   StoreSettings,
 } from './types';
+import { canTransitionOrderStatus } from './utils/format';
+import { dataStore } from './services/dataStore';
 import { PublicMenuPage } from './components/public/PublicMenuPage';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AdminDashboard } from './components/admin/AdminDashboard';
-import { AdminOrders } from './components/admin/AdminOrders';
+import { AdminOrders, OrderFilter } from './components/admin/AdminOrders';
 import { AdminMenu } from './components/admin/AdminMenu';
 import { AdminSettings } from './components/admin/AdminSettings';
 
 export default function App() {
   const [area, setArea] = useState<AppArea>('public');
   const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [store, setStore] = useState<StoreSettings>(INITIAL_STORE_SETTINGS);
+  const [ordersFilter, setOrdersFilter] = useState<OrderFilter>('Ativos');
+
+  const [products, setProducts] = useState<Product[]>(
+    () => dataStore.loadInitialData().products
+  );
+  const [orders, setOrders] = useState<Order[]>(
+    () => dataStore.loadInitialData().orders
+  );
+  const [store, setStore] = useState<StoreSettings>(
+    () => dataStore.loadInitialData().store
+  );
+
+  useEffect(() => {
+    dataStore.saveProducts(products);
+  }, [products]);
+
+  useEffect(() => {
+    dataStore.saveOrders(orders);
+  }, [orders]);
+
+  useEffect(() => {
+    dataStore.saveStore(store);
+  }, [store]);
 
   const activeOrdersCount = orders.filter(
     (o) =>
@@ -49,9 +66,13 @@ export default function App() {
 
   const handleUpdateOrderStatus = (orderId: string, nextStatus: OrderStatus) => {
     setOrders((prev) =>
-      prev.map((order) =>
-        order.id === orderId ? { ...order, status: nextStatus } : order
-      )
+      prev.map((order) => {
+        if (order.id !== orderId) return order;
+        if (!canTransitionOrderStatus(order.status, nextStatus)) {
+          return order;
+        }
+        return { ...order, status: nextStatus };
+      })
     );
   };
 
@@ -75,6 +96,18 @@ export default function App() {
 
   const handleDeleteProduct = (productId: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== productId));
+  };
+
+  const handleResetDemoData = () => {
+    const reset = dataStore.resetToDemo();
+    setProducts(reset.products);
+    setOrders(reset.orders);
+    setStore(reset.store);
+  };
+
+  const handleOpenOrdersWithFilter = (filter: OrderFilter) => {
+    setOrdersFilter(filter);
+    setAdminTab('orders');
   };
 
   const handlePlaceOrder = (orderInput: {
@@ -125,10 +158,14 @@ export default function App() {
     const deliveryFee = orderInput.modality === 'entrega' ? store.deliveryFee : 0;
     const total = subtotal + deliveryFee;
 
-    const nextNumericCode = 1046 + orders.filter((o) => !o.isDemo).length;
+    const maxNumericCode = orders.reduce((max, o) => {
+      const parsed = Number.parseInt(o.code.replace(/\D/g, ''), 10);
+      return Number.isNaN(parsed) ? max : Math.max(max, parsed);
+    }, 1045);
+
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
-      code: `#${nextNumericCode}`,
+      code: `#${maxNumericCode + 1}`,
       createdAt: new Date().toISOString(),
       customerName: orderInput.customerName,
       customerPhone: orderInput.customerPhone,
@@ -176,6 +213,7 @@ export default function App() {
           availableProductsCount={availableProductsCount}
           store={store}
           onNavigateTab={setAdminTab}
+          onSelectOrdersFilter={handleOpenOrdersWithFilter}
           onUpdateOrderStatus={handleUpdateOrderStatus}
         />
       )}
@@ -183,6 +221,8 @@ export default function App() {
       {adminTab === 'orders' && (
         <AdminOrders
           orders={orders}
+          filter={ordersFilter}
+          onChangeFilter={setOrdersFilter}
           onUpdateOrderStatus={handleUpdateOrderStatus}
         />
       )}
@@ -197,7 +237,11 @@ export default function App() {
       )}
 
       {adminTab === 'settings' && (
-        <AdminSettings settings={store} onSaveSettings={setStore} />
+        <AdminSettings
+          settings={store}
+          onSaveSettings={setStore}
+          onResetDemoData={handleResetDemoData}
+        />
       )}
     </AdminLayout>
   );

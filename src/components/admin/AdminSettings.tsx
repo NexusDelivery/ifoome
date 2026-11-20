@@ -1,36 +1,70 @@
-import React, { useState } from 'react';
-import { CheckCircle2, Save, Store } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertCircle, CheckCircle2, RotateCcw, Save, Store } from 'lucide-react';
 import { StoreSettings } from '../../types';
 import { formatPhoneMask } from '../../utils/format';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 interface AdminSettingsProps {
   settings: StoreSettings;
   onSaveSettings: (updated: StoreSettings) => void;
+  onResetDemoData: () => void;
 }
 
 export const AdminSettings: React.FC<AdminSettingsProps> = ({
   settings,
   onSaveSettings,
+  onResetDemoData,
 }) => {
   const [form, setForm] = useState<StoreSettings>(settings);
   const [feeText, setFeeText] = useState(
     settings.deliveryFee.toFixed(2).replace('.', ',')
   );
-  const [savedNotice, setSavedNotice] = useState(false);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+
+  useEffect(() => {
+    setForm(settings);
+    setFeeText(settings.deliveryFee.toFixed(2).replace('.', ','));
+  }, [settings]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorMsg(null);
+    setSavedNotice(null);
+
+    if (form.name.trim().length < 2) {
+      setErrorMsg('Informe o nome do estabelecimento.');
+      return;
+    }
+
+    const phoneDigits = form.phone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      setErrorMsg(
+        'Informe um telefone/WhatsApp comercial válido com DDD (10 ou 11 dígitos) para receber encaminhamentos de pedidos.'
+      );
+      return;
+    }
+
     const parsedFee = Number(feeText.replace(',', '.'));
-    const safeFee =
-      Number.isNaN(parsedFee) || parsedFee < 0 ? 0 : Math.round(parsedFee * 100) / 100;
+    if (Number.isNaN(parsedFee) || parsedFee < 0) {
+      setErrorMsg('Informe uma taxa de entrega válida (use 0,00 para entrega grátis).');
+      return;
+    }
+
+    const safeFee = Math.round(parsedFee * 100) / 100;
 
     onSaveSettings({
       ...form,
-      name: form.name.trim() || 'Marmitaria do Seu Raimundo',
+      name: form.name.trim(),
+      subtitle: form.subtitle.trim(),
+      address: form.address.trim(),
+      openingHours: form.openingHours.trim(),
+      deliveryEstimate: form.deliveryEstimate.trim(),
       deliveryFee: safeFee,
     });
-    setSavedNotice(true);
-    window.setTimeout(() => setSavedNotice(false), 3500);
+    setSavedNotice('Configurações atualizadas com sucesso.');
+    window.setTimeout(() => setSavedNotice(null), 3500);
   };
 
   return (
@@ -40,7 +74,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
           Configurações do Restaurante
         </h2>
         <p className="text-sm text-[#6E5D55]">
-          Informações exibidas no cardápio público e regras básicas de entrega.
+          Configure o WhatsApp comercial, informações do cardápio público e taxa de entrega.
         </p>
       </div>
 
@@ -50,7 +84,17 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
           className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-[#ECFDF3] border border-[#A6F4C5] text-sm font-semibold text-[#027A48]"
         >
           <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
-          <span>Configurações atualizadas com sucesso.</span>
+          <span>{savedNotice}</span>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-[#FDECE9] border border-[#FECDCA] text-sm font-medium text-[#B42318]"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <span>{errorMsg}</span>
         </div>
       )}
 
@@ -127,17 +171,22 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
               htmlFor="store-phone"
               className="block text-xs font-semibold text-[#382B25] mb-1.5"
             >
-              Telefone / WhatsApp de contato
+              Telefone / WhatsApp comercial *
             </label>
             <input
               id="store-phone"
               type="tel"
+              required
               value={form.phone}
               onChange={(e) =>
                 setForm({ ...form, phone: formatPhoneMask(e.target.value) })
               }
+              placeholder="(11) 98765-4321"
               className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] tabular-nums focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
             />
+            <p className="text-xs text-[#6E5D55] mt-1">
+              Usado para encaminhar os pedidos confirmados no WhatsApp.
+            </p>
           </div>
 
           <div>
@@ -211,16 +260,40 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
           </div>
         </div>
 
-        <div className="pt-2 flex justify-end">
+        <div className="pt-2 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setConfirmResetOpen(true)}
+            className="min-h-[44px] px-4 py-2.5 rounded-xl border border-[#DDD2C6] text-xs sm:text-sm font-semibold text-[#6E5D55] hover:bg-[#FFF8EF] flex items-center justify-center gap-2 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" aria-hidden="true" />
+            <span>Restaurar dados de exemplo</span>
+          </button>
+
           <button
             type="submit"
-            className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold flex items-center gap-2 transition-colors"
+            className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
           >
             <Save className="w-4 h-4" aria-hidden="true" />
             <span>Salvar Configurações</span>
           </button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={confirmResetOpen}
+        title="Restaurar dados de demonstração?"
+        description="Isso substituirá o cardápio, os pedidos e as configurações salvos neste navegador pelos exemplos iniciais."
+        confirmLabel="Sim, restaurar exemplos"
+        destructive
+        onCancel={() => setConfirmResetOpen(false)}
+        onConfirm={() => {
+          onResetDemoData();
+          setConfirmResetOpen(false);
+          setSavedNotice('Dados de demonstração restaurados.');
+          window.setTimeout(() => setSavedNotice(null), 3500);
+        }}
+      />
     </div>
   );
 };

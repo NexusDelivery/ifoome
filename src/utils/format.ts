@@ -26,6 +26,15 @@ export function formatPhoneMask(value: string): string {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }
 
+export function normalizeBrazilianPhoneForWa(phone: string): string | null {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length < 10) return null;
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    return digits;
+  }
+  return `55${digits}`;
+}
+
 export function isSameLocalDay(isoString: string, referenceDate = new Date()): boolean {
   const date = new Date(isoString);
   if (Number.isNaN(date.getTime())) return false;
@@ -39,6 +48,9 @@ export function isSameLocalDay(isoString: string, referenceDate = new Date()): b
 export interface DailySummary {
   ordersCount: number;
   totalRevenue: number;
+  waitingCount: number;
+  preparingCount: number;
+  outForDeliveryCount: number;
   inProgressCount: number;
   cancelledCount: number;
   averageTicket: number;
@@ -47,18 +59,19 @@ export interface DailySummary {
 /**
  * Calcula os indicadores do resumo diário conforme RN-06:
  * - Pedidos Cancelado são excluídos do total vendido e da contagem de pedidos válidos.
- * - Pedidos em andamento incluem: Recebido, Em preparo e Saiu para entrega.
+ * - Detalha pedidos aguardando (Recebido), em preparo (Em preparo) e enviados (Saiu para entrega).
  */
 export function calculateDailySummary(orders: Order[], referenceDate = new Date()): DailySummary {
   const todayOrders = orders.filter((order) => isSameLocalDay(order.createdAt, referenceDate));
   const validTodayOrders = todayOrders.filter((order) => order.status !== 'Cancelado');
   const cancelledCount = todayOrders.filter((order) => order.status === 'Cancelado').length;
-  const inProgressCount = validTodayOrders.filter(
-    (order) =>
-      order.status === 'Recebido' ||
-      order.status === 'Em preparo' ||
-      order.status === 'Saiu para entrega'
+
+  const waitingCount = validTodayOrders.filter((o) => o.status === 'Recebido').length;
+  const preparingCount = validTodayOrders.filter((o) => o.status === 'Em preparo').length;
+  const outForDeliveryCount = validTodayOrders.filter(
+    (o) => o.status === 'Saiu para entrega'
   ).length;
+  const inProgressCount = waitingCount + preparingCount + outForDeliveryCount;
 
   const totalRevenue = validTodayOrders.reduce((acc, order) => acc + order.total, 0);
   const ordersCount = validTodayOrders.length;
@@ -67,6 +80,9 @@ export function calculateDailySummary(orders: Order[], referenceDate = new Date(
   return {
     ordersCount,
     totalRevenue,
+    waitingCount,
+    preparingCount,
+    outForDeliveryCount,
     inProgressCount,
     cancelledCount,
     averageTicket,
@@ -96,6 +112,28 @@ export function getNextOrderStatus(status: OrderStatus): OrderStatus | null {
   }
 }
 
+/**
+ * Garante apenas transições coerentes de status conforme RN-05:
+ * Recebido -> Em preparo | Cancelado
+ * Em preparo -> Saiu para entrega | Cancelado
+ * Saiu para entrega -> Concluído | Cancelado
+ * Concluído / Cancelado -> estados finais (sem transição)
+ */
+export function canTransitionOrderStatus(from: OrderStatus, to: OrderStatus): boolean {
+  if (from === to) return false;
+  switch (from) {
+    case 'Recebido':
+      return to === 'Em preparo' || to === 'Cancelado';
+    case 'Em preparo':
+      return to === 'Saiu para entrega' || to === 'Cancelado';
+    case 'Saiu para entrega':
+      return to === 'Concluído' || to === 'Cancelado';
+    case 'Concluído':
+    case 'Cancelado':
+      return false;
+  }
+}
+
 export function getNextActionLabel(
   status: OrderStatus,
   modality: 'entrega' | 'retirada'
@@ -114,7 +152,7 @@ export function getNextActionLabel(
 
 export function buildWhatsAppOrderMessage(order: Order, storeName: string): string {
   const lines: string[] = [
-    `*Novo Pedido ${order.code} — ${storeName}*`,
+    `*Pedido ${order.code} — ${storeName}*`,
     `Cliente: ${order.customerName}`,
     `Telefone: ${order.customerPhone}`,
     '',
@@ -146,7 +184,7 @@ export function buildWhatsAppOrderMessage(order: Order, storeName: string): stri
   );
 
   if (order.generalObservation) {
-    lines.push(`Observação: ${order.generalObservation}`);
+    lines.push(`Observações: ${order.generalObservation}`);
   }
 
   lines.push(

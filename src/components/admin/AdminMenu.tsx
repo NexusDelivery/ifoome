@@ -2,15 +2,18 @@ import React, { useState } from 'react';
 import {
   Check,
   Edit3,
+  Loader2,
   Plus,
   Search,
   Sparkles,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import { CATEGORIES, Category, Product } from '../../types';
 import { PRESET_DISH_IMAGES } from '../../data/mockData';
 import { formatCurrency } from '../../utils/format';
+import { generateDishDescription } from '../../services/aiService';
 import { DishImage } from '../DishImage';
 import { ConfirmDialog } from '../ConfirmDialog';
 
@@ -42,6 +45,33 @@ const EMPTY_FORM: ProductFormState = {
   available: true,
 };
 
+function resizeImageFileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo de imagem.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Arquivo selecionado não é uma imagem válida.'));
+      img.onload = () => {
+        const maxWidth = 720;
+        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(String(reader.result));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export const AdminMenu: React.FC<AdminMenuProps> = ({
   products,
   onSaveProduct,
@@ -53,7 +83,11 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<ProductFormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
-  const [aiNote, setAiNote] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiStatus, setAiStatus] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const filteredProducts = products.filter((p) => {
@@ -69,7 +103,8 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
   const openNewModal = () => {
     setForm(EMPTY_FORM);
     setFormError(null);
-    setAiNote(null);
+    setAiStatus(null);
+    setAiLoading(false);
     setModalOpen(true);
   };
 
@@ -85,25 +120,32 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
       available: product.available,
     });
     setFormError(null);
-    setAiNote(null);
+    setAiStatus(null);
+    setAiLoading(false);
     setModalOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const trimmedName = form.name.trim();
     const parsedPrice = Number(form.priceText.replace(',', '.'));
-    if (!form.name.trim()) {
-      setFormError('Informe o nome do prato.');
+
+    if (trimmedName.length < 2) {
+      setFormError('Informe um nome válido para o prato (pelo menos 2 caracteres).');
+      return;
+    }
+    if (!CATEGORIES.includes(form.category)) {
+      setFormError('Selecione uma categoria válida.');
       return;
     }
     if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
-      setFormError('Informe um preço válido maior que zero.');
+      setFormError('Informe um preço válido maior que R$ 0,00.');
       return;
     }
 
     onSaveProduct({
       id: form.id ?? `prod-${Date.now()}`,
-      name: form.name.trim(),
+      name: trimmedName,
       category: form.category,
       price: Math.round(parsedPrice * 100) / 100,
       ingredients: form.ingredients.trim(),
@@ -114,10 +156,57 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
     setModalOpen(false);
   };
 
-  const handleAiButtonClick = () => {
-    setAiNote(
-      'O assistente de IA para gerar descrições comerciais será conectado na próxima etapa (AI Builder). Por enquanto, você pode escrever ou ajustar a descrição manualmente abaixo.'
-    );
+  const handleGenerateAiDescription = async () => {
+    setAiStatus(null);
+
+    if (form.name.trim().length < 2 || form.ingredients.trim().length < 3) {
+      setAiStatus({
+        type: 'error',
+        message:
+          'Preencha primeiro o Nome do prato e os Ingredientes principais para gerar a sugestão.',
+      });
+      return;
+    }
+
+    setAiLoading(true);
+    const result = await generateDishDescription({
+      name: form.name.trim(),
+      ingredients: form.ingredients.trim(),
+      category: form.category,
+    });
+    setAiLoading(false);
+
+    if (!result.ok || !result.description) {
+      setAiStatus({
+        type: 'error',
+        message:
+          result.error ||
+          'Não foi possível gerar a descrição agora. Você pode escrever manualmente.',
+      });
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, description: result.description! }));
+    setAiStatus({
+      type: 'success',
+      message:
+        'Sugestão gerada! Revise ou edite o texto abaixo antes de salvar o prato.',
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFormError(null);
+
+    try {
+      const dataUrl = await resizeImageFileToDataUrl(file);
+      setForm((prev) => ({ ...prev, imageUrl: dataUrl }));
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : 'Não foi possível carregar a imagem.'
+      );
+    }
   };
 
   return (
@@ -324,7 +413,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   required
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="Ex.: Marmita Executiva de Bife Acebolado"
+                  placeholder="Ex.: Marmita de Frango Grelhado"
                   className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
               </div>
@@ -385,7 +474,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   type="text"
                   value={form.ingredients}
                   onChange={(e) => setForm({ ...form, ingredients: e.target.value })}
-                  placeholder="Ex.: Contra-filé, arroz, feijão carioca, farofa e batata frita"
+                  placeholder="Ex.: Arroz, feijão, frango grelhado e salada"
                   className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
               </div>
@@ -396,21 +485,38 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     htmlFor="dish-description"
                     className="block text-xs font-semibold text-[#382B25]"
                   >
-                    Descrição comercial para o cardápio
+                    Descrição comercial (editável)
                   </label>
                   <button
                     type="button"
-                    onClick={handleAiButtonClick}
-                    className="text-xs font-semibold text-[#D94B3D] hover:underline inline-flex items-center gap-1 whitespace-nowrap"
+                    disabled={aiLoading}
+                    onClick={handleGenerateAiDescription}
+                    className="min-h-[34px] px-2.5 py-1 rounded-lg bg-[#FFF3E6] hover:bg-[#FFE6CC] disabled:opacity-60 border border-[#F47B35]/35 text-xs font-semibold text-[#B54708] inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
                   >
-                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>Sugerir com IA</span>
+                    {aiLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                        <span>Gerando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 text-[#D94B3D]" aria-hidden="true" />
+                        <span>Gerar descrição com IA</span>
+                      </>
+                    )}
                   </button>
                 </div>
 
-                {aiNote && (
-                  <p className="mb-2 px-3 py-2 rounded-xl bg-[#FFF3E6] border border-[#F47B35]/30 text-xs text-[#6E5D55]">
-                    {aiNote}
+                {aiStatus && (
+                  <p
+                    role={aiStatus.type === 'error' ? 'alert' : 'status'}
+                    className={`mb-2 px-3 py-2 rounded-xl border text-xs ${
+                      aiStatus.type === 'success'
+                        ? 'bg-[#ECFDF3] border-[#A6F4C5] text-[#027A48]'
+                        : 'bg-[#FFF3E6] border-[#F47B35]/35 text-[#B54708]'
+                    }`}
+                  >
+                    {aiStatus.message}
                   </p>
                 )}
 
@@ -419,18 +525,31 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   rows={3}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Descreva o prato de forma apetitosa para seus clientes..."
+                  placeholder="Descreva o prato de forma apetitosa ou use o assistente de IA acima para sugerir um texto..."
                   className="w-full px-3.5 py-2.5 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
               </div>
 
               <div className="space-y-2">
-                <label
-                  htmlFor="dish-image"
-                  className="block text-xs font-semibold text-[#382B25]"
-                >
-                  Fotografia do prato (escolha um exemplo ou informe um link)
-                </label>
+                <div className="flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="dish-image"
+                    className="block text-xs font-semibold text-[#382B25]"
+                  >
+                    Fotografia do prato
+                  </label>
+                  <label className="min-h-[34px] px-2.5 py-1 rounded-lg border border-[#DDD2C6] hover:bg-[#FFF8EF] text-xs font-semibold text-[#382B25] inline-flex items-center gap-1.5 cursor-pointer">
+                    <Upload className="w-3.5 h-3.5 text-[#F47B35]" aria-hidden="true" />
+                    <span>Enviar foto</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="sr-only"
+                    />
+                  </label>
+                </div>
+
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
                   {PRESET_DISH_IMAGES.map((preset) => (
                     <button
@@ -447,14 +566,21 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     </button>
                   ))}
                 </div>
+
                 <input
                   id="dish-image"
                   type="text"
                   value={form.imageUrl}
                   onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                  placeholder="Caminho ou URL da foto (opcional)"
+                  placeholder="Caminho, URL ou envie uma foto pelo botão acima (opcional)"
                   className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-xs text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
+
+                {form.imageUrl && (
+                  <div className="rounded-xl overflow-hidden border border-[#EAE0D5] max-w-[200px]">
+                    <DishImage src={form.imageUrl} alt={form.name || 'Prévia do prato'} />
+                  </div>
+                )}
               </div>
 
               <label className="flex items-center gap-3 min-h-[44px] px-3.5 py-2 rounded-xl bg-[#FFF8EF] border border-[#EAE0D5] cursor-pointer">

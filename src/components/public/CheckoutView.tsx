@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
-  Banknote,
+  Bike,
+  CheckCircle2,
   CreditCard,
   MapPin,
-  QrCode,
   ShoppingBag,
-  Truck,
+  Trash2,
 } from 'lucide-react';
 import {
   CartItem,
@@ -19,8 +19,12 @@ import {
 } from '../../types';
 import { formatCurrency, formatPhoneMask } from '../../utils/format';
 
+interface SyncedCartItem extends CartItem {
+  isUnavailable?: boolean;
+}
+
 interface CheckoutViewProps {
-  cart: CartItem[];
+  cart: SyncedCartItem[];
   catalogProducts: Product[];
   store: StoreSettings;
   onBackToMenu: () => void;
@@ -57,68 +61,76 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [neighborhood, setNeighborhood] = useState('');
   const [complement, setComplement] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Pix');
-  const [changeText, setChangeText] = useState('');
+  const [changeForText, setChangeForText] = useState('');
   const [generalObservation, setGeneralObservation] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const subtotal = cart.reduce((acc, item) => {
+  const enrichedCart = cart.map((item) => {
     const liveProduct = catalogProducts.find((p) => p.id === item.product.id);
-    const price = liveProduct ? liveProduct.price : item.product.price;
-    return acc + price * item.quantity;
-  }, 0);
+    const unavailable =
+      item.isUnavailable || !liveProduct || !liveProduct.available;
+    return {
+      ...item,
+      product: liveProduct ?? item.product,
+      unavailable,
+    };
+  });
 
+  const hasUnavailableItems = enrichedCart.some((item) => item.unavailable);
+  const subtotal = enrichedCart.reduce(
+    (acc, item) => acc + item.product.price * item.quantity,
+    0
+  );
   const deliveryFee = modality === 'entrega' ? store.deliveryFee : 0;
   const total = subtotal + deliveryFee;
-
-  const unavailableItems = cart.filter((item) => {
-    const live = catalogProducts.find((p) => p.id === item.product.id);
-    return !live || !live.available;
-  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
     if (!store.isOpen) {
-      setErrorMsg('O restaurante está fechado no momento e não aceita novos pedidos.');
+      setErrorMsg('O restaurante está fechado no momento.');
       return;
     }
-    if (cart.length === 0) {
-      setErrorMsg('Sua sacola está vazia. Adicione ao menos um prato.');
+
+    if (enrichedCart.length === 0) {
+      setErrorMsg('Sua sacola está vazia. Adicione pelo menos um item.');
       return;
     }
-    if (unavailableItems.length > 0) {
-      setErrorMsg(
-        `O item "${unavailableItems[0].product.name}" ficou indisponível. Remova-o para continuar.`
-      );
+
+    if (hasUnavailableItems) {
+      setErrorMsg('Remova os itens indisponíveis da sacola antes de finalizar.');
       return;
     }
-    if (!customerName.trim()) {
+
+    if (customerName.trim().length < 2) {
       setErrorMsg('Informe seu nome para identificarmos o pedido.');
       return;
     }
+
     const phoneDigits = customerPhone.replace(/\D/g, '');
-    if (phoneDigits.length < 10) {
-      setErrorMsg('Informe um telefone ou WhatsApp válido com DDD (10 ou 11 dígitos).');
+    if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+      setErrorMsg('Informe um telefone/WhatsApp válido com DDD (10 ou 11 dígitos).');
       return;
     }
+
     if (modality === 'entrega') {
       if (!street.trim() || !number.trim() || !neighborhood.trim()) {
-        setErrorMsg('Preencha rua, número e bairro para a entrega.');
+        setErrorMsg('Preencha Rua, Número e Bairro para entrega.');
         return;
       }
     }
 
-    let parsedChange: number | undefined;
-    if (paymentMethod === 'Dinheiro' && changeText.trim()) {
-      const val = Number(changeText.replace(',', '.'));
+    let parsedChangeFor: number | undefined;
+    if (paymentMethod === 'Dinheiro' && changeForText.trim() !== '') {
+      const val = Number(changeForText.replace(',', '.'));
       if (Number.isNaN(val) || val < total) {
         setErrorMsg(
-          `O valor para troco deve ser maior ou igual ao total (${formatCurrency(total)}).`
+          `Se precisar de troco, o valor informado deve ser maior ou igual ao total (${formatCurrency(total)}).`
         );
         return;
       }
-      parsedChange = Math.round(val * 100) / 100;
+      parsedChangeFor = Math.round(val * 100) / 100;
     }
 
     const result = onSubmitOrder({
@@ -135,12 +147,12 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             }
           : undefined,
       paymentMethod,
-      changeFor: parsedChange,
+      changeFor: parsedChangeFor,
       generalObservation: generalObservation.trim() || undefined,
     });
 
-    if (!result.ok && result.error) {
-      setErrorMsg(result.error);
+    if (!result.ok) {
+      setErrorMsg(result.error ?? 'Não foi possível concluir o pedido.');
     }
   };
 
@@ -150,76 +162,46 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         <button
           type="button"
           onClick={onBackToMenu}
-          className="min-h-[44px] px-3 py-2 -ml-3 rounded-xl text-sm font-semibold text-[#382B25] hover:bg-[#F7EFE5] inline-flex items-center gap-2 transition-colors"
+          className="min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] bg-[#FFFFFF] hover:bg-[#FFF8EF] text-sm font-semibold text-[#382B25] inline-flex items-center gap-2 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 text-[#F47B35]" aria-hidden="true" />
           <span>Voltar ao cardápio</span>
         </button>
-        <span className="text-xs font-medium text-[#6E5D55]">{store.name}</span>
-      </div>
 
-      <div>
-        <h1 className="font-display font-bold text-2xl sm:text-3xl text-[#382B25]">
+        <h1 className="font-display font-bold text-xl sm:text-2xl text-[#382B25]">
           Finalizar Pedido
         </h1>
-        <p className="text-sm text-[#6E5D55] mt-1">
-          Não precisa de cadastro. Preencha seus dados para enviar direto para a cozinha.
-        </p>
       </div>
 
       {errorMsg && (
         <div
           role="alert"
-          className="flex items-start gap-2.5 px-4 py-3.5 rounded-xl bg-[#FDECE9] border border-[#FECDCA] text-sm font-medium text-[#B42318]"
+          className="flex items-start gap-2.5 px-4 py-3.5 rounded-2xl bg-[#FDECE9] border border-[#FECDCA] text-sm font-medium text-[#B42318]"
         >
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
           <span>{errorMsg}</span>
         </div>
       )}
 
-      {unavailableItems.length > 0 && (
-        <div
-          role="alert"
-          className="px-4 py-3.5 rounded-xl bg-[#FFF3E6] border border-[#F47B35]/40 text-sm text-[#B54708] space-y-2"
-        >
-          <p className="font-semibold">
-            Um ou mais itens do seu carrinho ficaram indisponíveis:
-          </p>
-          <ul className="space-y-1">
-            {unavailableItems.map((item) => {
-              const idx = cart.findIndex((c) => c.product.id === item.product.id);
-              return (
-                <li key={item.product.id} className="flex items-center justify-between gap-3">
-                  <span>{item.product.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => idx >= 0 && onRemoveCartItem(idx)}
-                    className="text-xs font-bold underline text-[#B42318]"
-                  >
-                    Remover item
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Formulário Principal */}
+      <form
+        onSubmit={handleSubmit}
+        className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
+      >
+        {/* Coluna Esquerda: Formulário */}
         <div className="lg:col-span-7 space-y-5">
-          {/* 1. Seus dados */}
+          {/* Dados do Cliente */}
           <section className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-5 space-y-4">
             <h2 className="font-display font-bold text-lg text-[#382B25]">
               1. Seus dados
             </h2>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <label
                   htmlFor="checkout-name"
                   className="block text-xs font-semibold text-[#382B25] mb-1.5"
                 >
-                  Nome completo *
+                  Seu nome *
                 </label>
                 <input
                   id="checkout-name"
@@ -227,7 +209,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   required
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="Ex.: Ana Paula Silva"
+                  placeholder="Ex.: Maria Clara"
                   className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
               </div>
@@ -245,56 +227,52 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   required
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(formatPhoneMask(e.target.value))}
-                  placeholder="(11) 99999-9999"
+                  placeholder="(11) 98765-4321"
                   className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] tabular-nums focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
               </div>
             </div>
           </section>
 
-          {/* 2. Entrega ou Retirada */}
+          {/* Modalidade */}
           <section className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-5 space-y-4">
             <h2 className="font-display font-bold text-lg text-[#382B25]">
               2. Como deseja receber?
             </h2>
 
-            <div className="grid grid-cols-2 gap-3" role="radiogroup" aria-label="Modalidade de recebimento">
+            <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
-                role="radio"
-                aria-checked={modality === 'entrega'}
                 onClick={() => setModality('entrega')}
-                className={`min-h-[56px] p-3.5 rounded-xl border text-left transition-colors flex items-center gap-3 ${
+                className={`min-h-[56px] px-4 py-3 rounded-xl border text-left transition-colors flex items-center gap-3 ${
                   modality === 'entrega'
-                    ? 'bg-[#FFF3E6] border-[#F47B35] text-[#382B25]'
-                    : 'bg-[#FFFFFF] border-[#DDD2C6] text-[#6E5D55] hover:bg-[#FFF8EF]'
+                    ? 'border-[#F47B35] bg-[#FFF3E6] text-[#382B25]'
+                    : 'border-[#DDD2C6] bg-[#FFFFFF] text-[#6E5D55] hover:bg-[#FFF8EF]'
                 }`}
               >
-                <Truck
+                <Bike
                   className={`w-5 h-5 shrink-0 ${
                     modality === 'entrega' ? 'text-[#D94B3D]' : 'text-[#8E7D74]'
                   }`}
                   aria-hidden="true"
                 />
                 <div>
-                  <span className="block text-sm font-bold text-[#382B25]">Entrega</span>
-                  <span className="block text-xs text-[#6E5D55] tabular-nums">
+                  <span className="block text-sm font-bold">Entrega</span>
+                  <span className="block text-xs tabular-nums">
                     {store.deliveryFee === 0
                       ? 'Grátis'
-                      : `Taxa ${formatCurrency(store.deliveryFee)}`}
+                      : formatCurrency(store.deliveryFee)}
                   </span>
                 </div>
               </button>
 
               <button
                 type="button"
-                role="radio"
-                aria-checked={modality === 'retirada'}
                 onClick={() => setModality('retirada')}
-                className={`min-h-[56px] p-3.5 rounded-xl border text-left transition-colors flex items-center gap-3 ${
+                className={`min-h-[56px] px-4 py-3 rounded-xl border text-left transition-colors flex items-center gap-3 ${
                   modality === 'retirada'
-                    ? 'bg-[#FFF3E6] border-[#F47B35] text-[#382B25]'
-                    : 'bg-[#FFFFFF] border-[#DDD2C6] text-[#6E5D55] hover:bg-[#FFF8EF]'
+                    ? 'border-[#F47B35] bg-[#FFF3E6] text-[#382B25]'
+                    : 'border-[#DDD2C6] bg-[#FFFFFF] text-[#6E5D55] hover:bg-[#FFF8EF]'
                 }`}
               >
                 <ShoppingBag
@@ -304,25 +282,23 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   aria-hidden="true"
                 />
                 <div>
-                  <span className="block text-sm font-bold text-[#382B25]">Retirada</span>
-                  <span className="block text-xs text-[#027A48] font-semibold">
-                    Grátis no local
-                  </span>
+                  <span className="block text-sm font-bold">Retirada</span>
+                  <span className="block text-xs">Grátis no balcão</span>
                 </div>
               </button>
             </div>
 
             {modality === 'entrega' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-6 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-6 gap-3.5 pt-2">
                 <div className="sm:col-span-4">
                   <label
-                    htmlFor="addr-street"
+                    htmlFor="checkout-street"
                     className="block text-xs font-semibold text-[#382B25] mb-1.5"
                   >
                     Rua / Avenida *
                   </label>
                   <input
-                    id="addr-street"
+                    id="checkout-street"
                     type="text"
                     required
                     value={street}
@@ -334,108 +310,95 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
                 <div className="sm:col-span-2">
                   <label
-                    htmlFor="addr-number"
+                    htmlFor="checkout-number"
                     className="block text-xs font-semibold text-[#382B25] mb-1.5"
                   >
                     Número *
                   </label>
                   <input
-                    id="addr-number"
+                    id="checkout-number"
                     type="text"
                     required
                     value={number}
                     onChange={(e) => setNumber(e.target.value)}
-                    placeholder="Ex.: 120"
+                    placeholder="123"
                     className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                   />
                 </div>
 
                 <div className="sm:col-span-3">
                   <label
-                    htmlFor="addr-neighborhood"
+                    htmlFor="checkout-neighborhood"
                     className="block text-xs font-semibold text-[#382B25] mb-1.5"
                   >
                     Bairro *
                   </label>
                   <input
-                    id="addr-neighborhood"
+                    id="checkout-neighborhood"
                     type="text"
                     required
                     value={neighborhood}
                     onChange={(e) => setNeighborhood(e.target.value)}
-                    placeholder="Ex.: Centro"
+                    placeholder="Vila Nova"
                     className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                   />
                 </div>
 
                 <div className="sm:col-span-3">
                   <label
-                    htmlFor="addr-complement"
+                    htmlFor="checkout-complement"
                     className="block text-xs font-semibold text-[#382B25] mb-1.5"
                   >
                     Complemento / Referência
                   </label>
                   <input
-                    id="addr-complement"
+                    id="checkout-complement"
                     type="text"
                     value={complement}
                     onChange={(e) => setComplement(e.target.value)}
-                    placeholder="Apto, bloco, portão..."
+                    placeholder="Apto 12, portão azul"
                     className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                   />
                 </div>
               </div>
             ) : (
-              <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-[#FFF8EF] border border-[#EAE0D5] text-sm text-[#57473F]">
+              <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-[#FFF8EF] border border-[#EAE0D5] text-sm text-[#57473F]">
                 <MapPin className="w-4 h-4 text-[#F47B35] shrink-0 mt-0.5" aria-hidden="true" />
-                <div>
-                  <span className="font-semibold text-[#382B25]">Endereço para retirada: </span>
-                  <span>{store.address}</span>
-                </div>
+                <span>
+                  <strong className="text-[#382B25]">Endereço para retirada:</strong>{' '}
+                  {store.address}
+                </span>
               </div>
             )}
           </section>
 
-          {/* 3. Forma de pagamento */}
+          {/* Pagamento */}
           <section className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-5 space-y-4">
-            <div>
-              <h2 className="font-display font-bold text-lg text-[#382B25]">
-                3. Forma de pagamento
-              </h2>
-              <p className="text-xs text-[#6E5D55] mt-0.5">
-                Pagamento presencial na entrega ou retirada.
-              </p>
-            </div>
+            <h2 className="font-display font-bold text-lg text-[#382B25]">
+              3. Forma de pagamento
+            </h2>
 
-            <div className="grid grid-cols-3 gap-2.5" role="radiogroup" aria-label="Forma de pagamento">
-              {(
-                [
-                  { id: 'Pix', label: 'Pix', Icon: QrCode },
-                  { id: 'Dinheiro', label: 'Dinheiro', Icon: Banknote },
-                  { id: 'Cartão', label: 'Cartão', Icon: CreditCard },
-                ] as const
-              ).map(({ id, label, Icon }) => {
-                const selected = paymentMethod === id;
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {(['Pix', 'Dinheiro', 'Cartão'] as PaymentMethod[]).map((method) => {
+                const selected = paymentMethod === method;
                 return (
                   <button
-                    key={id}
+                    key={method}
                     type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    onClick={() => setPaymentMethod(id)}
-                    className={`min-h-[52px] px-3 py-2.5 rounded-xl border flex flex-col sm:flex-row items-center justify-center gap-2 text-xs sm:text-sm font-semibold transition-colors ${
+                    onClick={() => setPaymentMethod(method)}
+                    className={`min-h-[48px] px-3.5 py-2.5 rounded-xl border text-sm font-semibold flex items-center justify-center gap-2 transition-colors ${
                       selected
-                        ? 'bg-[#FFF3E6] border-[#F47B35] text-[#382B25]'
-                        : 'bg-[#FFFFFF] border-[#DDD2C6] text-[#6E5D55] hover:bg-[#FFF8EF]'
+                        ? 'border-[#F47B35] bg-[#FFF3E6] text-[#382B25]'
+                        : 'border-[#DDD2C6] bg-[#FFFFFF] text-[#6E5D55] hover:bg-[#FFF8EF]'
                     }`}
                   >
-                    <Icon
+                    <CreditCard
                       className={`w-4 h-4 shrink-0 ${
                         selected ? 'text-[#D94B3D]' : 'text-[#8E7D74]'
                       }`}
                       aria-hidden="true"
                     />
-                    <span>{label}</span>
+                    <span>{method}</span>
                   </button>
                 );
               })}
@@ -447,16 +410,16 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   htmlFor="checkout-change"
                   className="block text-xs font-semibold text-[#382B25] mb-1.5"
                 >
-                  Precisa de troco para quanto? (opcional)
+                  Troco para quanto? (opcional)
                 </label>
                 <input
                   id="checkout-change"
                   type="text"
                   inputMode="decimal"
-                  value={changeText}
-                  onChange={(e) => setChangeText(e.target.value)}
-                  placeholder="Ex.: 50,00 ou 100,00"
-                  className="w-full sm:w-56 min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] tabular-nums focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+                  value={changeForText}
+                  onChange={(e) => setChangeForText(e.target.value)}
+                  placeholder="Ex.: 50,00 (deixe vazio se não precisar de troco)"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] tabular-nums focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
               </div>
             )}
@@ -466,49 +429,73 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 htmlFor="checkout-obs"
                 className="block text-xs font-semibold text-[#382B25] mb-1.5"
               >
-                Observação geral do pedido (opcional)
+                Observações adicionais do pedido (opcional)
               </label>
               <textarea
                 id="checkout-obs"
                 rows={2}
                 value={generalObservation}
                 onChange={(e) => setGeneralObservation(e.target.value)}
-                placeholder="Ex.: Enviar talheres descartáveis, tocar interfone 12..."
+                placeholder="Ex.: Enviar talheres descartáveis, tocar interfone 102..."
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
               />
             </div>
           </section>
         </div>
 
-        {/* Resumo Lateral do Pedido */}
-        <aside className="lg:col-span-5 bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-5 space-y-4 lg:sticky lg:top-20">
+        {/* Coluna Direita: Resumo da Sacola */}
+        <aside className="lg:col-span-5 bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-5 space-y-4 lg:sticky lg:top-24">
           <h2 className="font-display font-bold text-lg text-[#382B25]">
-            Resumo do Pedido
+            Resumo do pedido
           </h2>
 
-          <ul className="divide-y divide-[#F2EAE0]">
-            {cart.map((item, idx) => {
-              const liveProduct = catalogProducts.find((p) => p.id === item.product.id);
-              const price = liveProduct ? liveProduct.price : item.product.price;
-              return (
-                <li key={`${item.product.id}-${idx}`} className="py-3 flex justify-between gap-3 text-sm">
+          {enrichedCart.length === 0 ? (
+            <div className="py-6 text-center space-y-2">
+              <p className="text-sm font-semibold text-[#382B25]">
+                Sua sacola está vazia.
+              </p>
+              <button
+                type="button"
+                onClick={onBackToMenu}
+                className="text-sm font-semibold text-[#D94B3D] hover:underline"
+              >
+                Voltar e escolher pratos
+              </button>
+            </div>
+          ) : (
+            <ul className="divide-y divide-[#F2EAE0]">
+              {enrichedCart.map((item, idx) => (
+                <li key={`${item.product.id}-${idx}`} className="py-3 flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-semibold text-[#382B25]">
+                    <p className="text-sm font-semibold text-[#382B25]">
                       {item.quantity}x {item.product.name}
                     </p>
                     {item.observation && (
-                      <p className="text-xs text-[#6E5D55] mt-0.5">
-                        Obs: {item.observation}
-                      </p>
+                      <p className="text-xs text-[#6E5D55]">Obs: {item.observation}</p>
+                    )}
+                    {item.unavailable && (
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className="text-xs font-semibold text-[#B42318]">
+                          Indisponível no momento
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => onRemoveCartItem(idx)}
+                          className="text-xs font-semibold text-[#B42318] underline inline-flex items-center gap-1"
+                        >
+                          <Trash2 className="w-3 h-3" aria-hidden="true" />
+                          Remover
+                        </button>
+                      </div>
                     )}
                   </div>
-                  <span className="font-semibold text-[#382B25] tabular-nums shrink-0">
-                    {formatCurrency(price * item.quantity)}
+                  <span className="text-sm font-bold text-[#382B25] tabular-nums shrink-0">
+                    {formatCurrency(item.product.price * item.quantity)}
                   </span>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+          )}
 
           <div className="pt-3 border-t border-[#EAE0D5] space-y-2 text-sm">
             <div className="flex justify-between text-[#6E5D55]">
@@ -521,20 +508,19 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 {deliveryFee === 0 ? 'Grátis' : formatCurrency(deliveryFee)}
               </span>
             </div>
-            <div className="flex justify-between items-baseline pt-2 border-t border-[#F2EAE0]">
-              <span className="font-display font-bold text-base text-[#382B25]">Total</span>
-              <span className="font-display font-extrabold text-2xl text-[#D94B3D] tabular-nums">
-                {formatCurrency(total)}
-              </span>
+            <div className="flex justify-between font-display font-extrabold text-xl text-[#382B25] pt-2 border-t border-[#F2EAE0]">
+              <span>Total</span>
+              <span className="tabular-nums text-[#D94B3D]">{formatCurrency(total)}</span>
             </div>
           </div>
 
           <button
             type="submit"
-            disabled={!store.isOpen || cart.length === 0 || unavailableItems.length > 0}
-            className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] disabled:bg-[#DDD2C6] disabled:text-[#6E5D55] text-white font-semibold text-base transition-colors"
+            disabled={!store.isOpen || enrichedCart.length === 0 || hasUnavailableItems}
+            className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] disabled:bg-[#DDD2C6] disabled:text-[#6E5D55] text-white font-semibold text-base flex items-center justify-center gap-2 transition-colors"
           >
-            Confirmar Pedido
+            <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
+            <span>Confirmar Pedido</span>
           </button>
         </aside>
       </form>

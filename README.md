@@ -167,6 +167,23 @@ As especificações detalhadas do MVP estão documentadas nos seguintes arquivos
 
 ---
 
+## 12. Implementação Funcional e Assistente de IA (Etapa 3 — AI Builder)
+
+### Funcionalidades Integradas em Operação
+- **Cardápio Digital & Gestão de Produtos:** cadastro, edição, upload local/link de fotografia, categorias, validações de nome/preço, alternância de disponibilidade em 1 toque e reflexão imediata na vitrine pública.
+- **Fluxo Público de Compra:** exibição exclusiva de pratos disponíveis, modal de detalhes com observações por item, sacola sincronizada em tempo real com preços e disponibilidade vigentes, checkout completo (Entrega com endereço obrigatório vs. Retirada gratuita; Pix, Dinheiro com troco validado e Cartão) e confirmação com código próprio.
+- **Painel de Pedidos & Transições Seguras:** acompanhamento detalhado dos pedidos, atualização de status (`Recebido` → `Em preparo` → `Saiu para entrega` / `Pronto para retirada` → `Concluído`, além de `Cancelado`) com bloqueio de transições incoerentes.
+- **Dashboard em Tempo Real:** indicadores calculados dinamicamente a partir dos pedidos registrados (*Pedidos recebidos no dia*, *Total vendido no dia* sem somar cancelados, *Aguardando atendimento*, *Pedidos em preparo*, *Enviados para entrega* e *Pedidos recentes*).
+- **WhatsApp Complementar:** configuração do número comercial do restaurante nas Configurações e geração de link pronto (`wa.me`) + opção de copiar resumo do pedido na confirmação, com envio iniciado exclusivamente pelo usuário.
+- **Assistente de IA para Descrições (`server.ts`):** rota server-side `POST /api/ai/describe-dish` usando `@google/genai` (`gemini-4-hydrogen`) para sugerir descrições comerciais editáveis a partir do nome e ingredientes, sem expor chave de API no navegador e com tratamento explícito de indisponibilidade/erros.
+
+### Recursos Dependentes de Integração Externa / Próximas Etapas
+- **Persistência em Nuvem / Banco de Dados:** os dados de cardápio, pedidos e configurações estão centralizados na camada `src/services/dataStore.ts` utilizando armazenamento local do navegador (`localStorage`) como ponte temporária até a integração definitiva na etapa de **Tech Lead**.
+- **Chave da API de IA (`GEMINI_API_KEY`):** a geração de descrições por IA depende da variável `GEMINI_API_KEY` configurada no ambiente do servidor; caso ausente, o cadastro e a edição manual dos pratos continuam operando normalmente.
+
+---
+
 *Este documento serve como referência central de contexto para todas as etapas do desenvolvimento do **iFoome Delivery** e deverá ser atualizado conforme novas decisões forem consolidadas, preservando os princípios estabelecidos desde a concepção.*
+
 
 

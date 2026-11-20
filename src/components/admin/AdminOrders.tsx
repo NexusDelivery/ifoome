@@ -18,12 +18,14 @@ import {
 import { StatusBadge } from '../StatusBadge';
 import { ConfirmDialog } from '../ConfirmDialog';
 
+export type OrderFilter = 'Ativos' | 'Todos' | OrderStatus;
+
 interface AdminOrdersProps {
   orders: Order[];
+  filter: OrderFilter;
+  onChangeFilter: (filter: OrderFilter) => void;
   onUpdateOrderStatus: (orderId: string, nextStatus: OrderStatus) => void;
 }
-
-type OrderFilter = 'Ativos' | 'Todos' | OrderStatus;
 
 const FILTERS: OrderFilter[] = [
   'Ativos',
@@ -37,12 +39,17 @@ const FILTERS: OrderFilter[] = [
 
 export const AdminOrders: React.FC<AdminOrdersProps> = ({
   orders,
+  filter,
+  onChangeFilter,
   onUpdateOrderStatus,
 }) => {
-  const [filter, setFilter] = useState<OrderFilter>('Ativos');
   const [search, setSearch] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
+
+  const selectedOrder = selectedOrderId
+    ? orders.find((o) => o.id === selectedOrderId) ?? null
+    : null;
 
   const filteredOrders = orders.filter((order) => {
     const matchesStatus =
@@ -83,7 +90,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
         <div>
           <h2 className="font-display font-bold text-2xl text-[#382B25]">Pedidos</h2>
           <p className="text-sm text-[#6E5D55]">
-            Acompanhe a cozinha e atualize o andamento com um toque.
+            Acompanhe a cozinha e avance os pedidos sem permitir retrocessos acidentais.
           </p>
         </div>
 
@@ -118,7 +125,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               type="button"
               role="tab"
               aria-selected={isActive}
-              onClick={() => setFilter(f)}
+              onClick={() => onChangeFilter(f)}
               className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0 transition-colors flex items-center gap-1.5 ${
                 isActive
                   ? 'bg-[#382B25] text-[#FFF8EF]'
@@ -256,7 +263,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setSelectedOrder(order)}
+                      onClick={() => setSelectedOrderId(order.id)}
                       className="min-h-[44px] px-3 py-2 rounded-xl border border-[#DDD2C6] text-xs sm:text-sm font-semibold text-[#382B25] hover:bg-[#FFF8EF] flex items-center gap-1.5 whitespace-nowrap"
                     >
                       <Eye className="w-4 h-4" aria-hidden="true" />
@@ -315,7 +322,7 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setSelectedOrder(null)}
+                onClick={() => setSelectedOrderId(null)}
                 aria-label="Fechar detalhes do pedido"
                 className="min-w-[44px] min-h-[44px] -mr-2 -mt-2 rounded-xl flex items-center justify-center text-[#6E5D55] hover:bg-[#F7EFE5]"
               >
@@ -329,6 +336,22 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
                 {selectedOrder.customerPhone}
               </span>
             </div>
+
+            {selectedOrder.modality === 'entrega' && selectedOrder.address ? (
+              <div className="text-sm text-[#57473F] bg-[#FFF8EF] rounded-xl p-3.5 border border-[#EAE0D5]">
+                <strong className="text-[#382B25]">Endereço de entrega: </strong>
+                {selectedOrder.address.street}, {selectedOrder.address.number} —{' '}
+                {selectedOrder.address.neighborhood}
+                {selectedOrder.address.complement
+                  ? ` (${selectedOrder.address.complement})`
+                  : ''}
+              </div>
+            ) : (
+              <div className="text-sm text-[#57473F] bg-[#FFF8EF] rounded-xl p-3.5 border border-[#EAE0D5]">
+                <strong className="text-[#382B25]">Modalidade: </strong>
+                Retirada no estabelecimento
+              </div>
+            )}
 
             <div className="space-y-2">
               <p className="text-xs font-semibold text-[#6E5D55]">Itens solicitados</p>
@@ -351,7 +374,22 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               </ul>
             </div>
 
+            {selectedOrder.generalObservation && (
+              <p className="text-xs sm:text-sm text-[#B54708] bg-[#FFF3E6] px-3.5 py-2.5 rounded-xl">
+                <strong>Observação geral:</strong> {selectedOrder.generalObservation}
+              </p>
+            )}
+
             <div className="text-sm space-y-1.5 bg-[#FFF8EF] rounded-xl p-4 border border-[#EAE0D5]">
+              <div className="flex justify-between text-[#6E5D55]">
+                <span>Pagamento</span>
+                <span className="font-semibold text-[#382B25]">
+                  {selectedOrder.paymentMethod}
+                  {selectedOrder.paymentMethod === 'Dinheiro' && selectedOrder.changeFor
+                    ? ` (troco p/ ${formatCurrency(selectedOrder.changeFor)})`
+                    : ''}
+                </span>
+              </div>
               <div className="flex justify-between text-[#6E5D55]">
                 <span>Subtotal</span>
                 <span className="tabular-nums">{formatCurrency(selectedOrder.subtotal)}</span>
@@ -370,34 +408,47 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
               </div>
             </div>
 
-            {selectedOrder.status !== 'Concluído' && selectedOrder.status !== 'Cancelado' && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold text-[#6E5D55]">Atualizar status</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {(['Recebido', 'Em preparo', 'Saiu para entrega', 'Concluído'] as OrderStatus[]).map(
-                    (st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() => {
-                          onUpdateOrderStatus(selectedOrder.id, st);
-                          setSelectedOrder({ ...selectedOrder, status: st });
-                        }}
-                        className={`min-h-[44px] px-3 py-2 rounded-xl text-xs font-semibold border transition-colors ${
-                          selectedOrder.status === st
-                            ? 'bg-[#382B25] text-white border-[#382B25]'
-                            : 'bg-[#FFFFFF] text-[#382B25] border-[#DDD2C6] hover:bg-[#FFF8EF]'
-                        }`}
-                      >
-                        {st === 'Saiu para entrega' && selectedOrder.modality === 'retirada'
-                          ? 'Pronto p/ retirada'
-                          : st}
-                      </button>
-                    )
+            {(() => {
+              const nextStatus = getNextOrderStatus(selectedOrder.status);
+              const nextLabel = getNextActionLabel(
+                selectedOrder.status,
+                selectedOrder.modality
+              );
+              const canCancel =
+                selectedOrder.status !== 'Concluído' &&
+                selectedOrder.status !== 'Cancelado';
+
+              if (!nextStatus && !canCancel) {
+                return (
+                  <p className="text-xs text-[#6E5D55] text-center pt-1">
+                    Pedido encerrado no status <strong>{selectedOrder.status}</strong>.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="flex flex-col-reverse sm:flex-row gap-2.5 pt-1">
+                  {canCancel && (
+                    <button
+                      type="button"
+                      onClick={() => setOrderToCancel(selectedOrder)}
+                      className="min-h-[44px] px-4 py-2.5 rounded-xl border border-[#FECDCA] text-sm font-semibold text-[#B42318] hover:bg-[#FDECE9]"
+                    >
+                      Cancelar pedido
+                    </button>
+                  )}
+                  {nextStatus && nextLabel && (
+                    <button
+                      type="button"
+                      onClick={() => onUpdateOrderStatus(selectedOrder.id, nextStatus)}
+                      className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold transition-colors"
+                    >
+                      Avançar para: {nextLabel}
+                    </button>
                   )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </div>
       )}

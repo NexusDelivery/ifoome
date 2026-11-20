@@ -1,17 +1,12 @@
-export type Category =
-  | 'Marmitas'
-  | 'Pratos do Dia'
-  | 'Acompanhamentos'
-  | 'Bebidas'
-  | 'Sobremesas';
-
-export const CATEGORIES: Category[] = [
+export const CATEGORIES = [
   'Marmitas',
-  'Pratos do Dia',
-  'Acompanhamentos',
+  'Pratos Executivos',
+  'Porções',
   'Bebidas',
   'Sobremesas',
-];
+] as const;
+
+export type Category = (typeof CATEGORIES)[number];
 
 export type OrderStatus =
   | 'Recebido'
@@ -59,7 +54,7 @@ export interface OrderAddress {
 export interface Order {
   id: string;
   code: string;
-  createdAt: string; // ISO string
+  createdAt: string;
   customerName: string;
   customerPhone: string;
   modality: DeliveryModality;
