@@ -183,6 +183,16 @@ As especificações detalhadas do MVP estão documentadas nos seguintes arquivos
 
 ---
 
+## 13. Publicação Automática (GitHub Actions)
+
+O projeto possui workflow de integração e entrega contínua configurado em `.github/workflows/deploy.yml` para facilitar testes da equipe em diferentes dispositivos antes da integração final:
+
+- **Branch exclusiva de publicação contínua:** `develop` (a branch `main` permanece reservada para a versão final e estável).
+- **Fluxo automático:** a cada novo `push` na branch `develop`, o GitHub Actions instala as dependências, valida os tipos (`npm run lint`), gera o build estático (`npm run build` com `base` ajustado via `VITE_BASE_PATH` pelo `actions/configure-pages`) e publica o diretório `dist/` no **GitHub Pages**.
+- **Observação sobre IA no deploy estático:** o GitHub Pages hospeda apenas os arquivos estáticos do frontend (`dist/`). O fluxo principal (cardápio, sacola, pedidos, WhatsApp e painel administrativo com `localStorage`) funciona integralmente; já a sugestão automática de descrições com IA (`/api/ai/describe-dish`) requer servidor Node (`server.ts`) com `GEMINI_API_KEY` configurada e degrada com aviso amigável para preenchimento manual no deploy estático.
+
+---
+
 *Este documento serve como referência central de contexto para todas as etapas do desenvolvimento do **iFoome Delivery** e deverá ser atualizado conforme novas decisões forem consolidadas, preservando os princípios estabelecidos desde a concepção.*
 
 
