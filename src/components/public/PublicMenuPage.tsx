@@ -68,16 +68,6 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
   const [dishObs, setDishObs] = useState('');
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
 
-  // Sincroniza itens da sacola com o catálogo vigente (preço e disponibilidade reais)
-  const syncedCart = cart.map((item) => {
-    const liveProduct = products.find((p) => p.id === item.product.id);
-    return {
-      ...item,
-      product: liveProduct ?? item.product,
-      isUnavailable: !liveProduct || !liveProduct.available,
-    };
-  });
-
   // RF-A07: O cardápio público exibe somente produtos disponíveis
   const availableProducts = products.filter((p) => p.available);
 
@@ -92,12 +82,11 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
     return matchesCat && matchesSearch;
   });
 
-  const totalCartItems = syncedCart.reduce((acc, item) => acc + item.quantity, 0);
-  const cartSubtotal = syncedCart.reduce(
+  const totalCartItems = cart.reduce((acc, item) => acc + item.quantity, 0);
+  const cartSubtotal = cart.reduce(
     (acc, item) => acc + item.product.price * item.quantity,
     0
   );
-  const hasUnavailableInCart = syncedCart.some((item) => item.isUnavailable);
 
   const openDishModal = (product: Product) => {
     setSelectedDish(product);
@@ -106,7 +95,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
   };
 
   const addToCart = (product: Product, quantity: number, observation?: string) => {
-    if (!store.isOpen || !product.available) return;
+    if (!store.isOpen) return;
     const cleanObs = observation?.trim() || undefined;
     setCart((prev) => {
       const existingIndex = prev.findIndex(
@@ -117,7 +106,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
       if (existingIndex >= 0) {
         return prev.map((item, idx) =>
           idx === existingIndex
-            ? { ...item, product, quantity: item.quantity + quantity }
+            ? { ...item, quantity: item.quantity + quantity }
             : item
         );
       }
@@ -155,11 +144,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
   }) => {
     const result = onPlaceOrder({
       ...orderData,
-      items: syncedCart.map(({ product, quantity, observation }) => ({
-        product,
-        quantity,
-        observation,
-      })),
+      items: cart,
     });
     if (result.ok && result.order) {
       setConfirmedOrder(result.order);
@@ -238,7 +223,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
       {view === 'checkout' && (
         <main className="flex-1">
           <CheckoutView
-            cart={syncedCart}
+            cart={cart}
             catalogProducts={products}
             store={store}
             onBackToMenu={() => setView('menu')}
@@ -409,7 +394,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                 {visibleProducts.map((product) => {
-                  const qtyInCart = syncedCart
+                  const qtyInCart = cart
                     .filter((c) => c.product.id === product.id)
                     .reduce((acc, c) => acc + c.quantity, 0);
 
@@ -643,7 +628,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto p-5">
-              {syncedCart.length === 0 ? (
+              {cart.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-center py-12 space-y-3">
                   <div className="w-14 h-14 rounded-2xl bg-[#FFF3E6] text-[#F47B35] flex items-center justify-center">
                     <ShoppingBag className="w-7 h-7" aria-hidden="true" />
@@ -657,18 +642,13 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
                 </div>
               ) : (
                 <ul className="divide-y divide-[#F2EAE0]">
-                  {syncedCart.map((item, idx) => (
+                  {cart.map((item, idx) => (
                     <li key={`${item.product.id}-${idx}`} className="py-4 space-y-2.5">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <p className="font-semibold text-sm text-[#382B25]">
                             {item.product.name}
                           </p>
-                          {item.isUnavailable && (
-                            <p className="text-xs font-semibold text-[#B42318] mt-0.5">
-                              Item indisponível no momento — remova para finalizar.
-                            </p>
-                          )}
                           {item.observation && (
                             <p className="text-xs text-[#6E5D55] mt-0.5">
                               Obs: {item.observation}
@@ -722,7 +702,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
               )}
             </div>
 
-            {syncedCart.length > 0 && (
+            {cart.length > 0 && (
               <div className="p-5 border-t border-[#EAE0D5] bg-[#FFF8EF] space-y-3">
                 <div className="flex justify-between items-center text-sm text-[#6E5D55]">
                   <span>Subtotal dos itens</span>
@@ -735,18 +715,14 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
                 </p>
                 <button
                   type="button"
-                  disabled={!store.isOpen || hasUnavailableInCart}
+                  disabled={!store.isOpen}
                   onClick={() => {
                     setCartOpen(false);
                     setView('checkout');
                   }}
-                  className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] disabled:bg-[#DDD2C6] disabled:text-[#6E5D55] text-white font-semibold text-base transition-colors"
+                  className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] disabled:bg-[#DDD2C6] text-white font-semibold text-base transition-colors"
                 >
-                  {!store.isOpen
-                    ? 'Restaurante Fechado'
-                    : hasUnavailableInCart
-                      ? 'Remova itens indisponíveis'
-                      : 'Ir para Finalização'}
+                  {store.isOpen ? 'Ir para Finalização' : 'Restaurante Fechado'}
                 </button>
               </div>
             )}

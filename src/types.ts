@@ -1,12 +1,9 @@
-export const CATEGORIES = [
-  'Marmitas',
-  'Pratos Executivos',
-  'Porções',
-  'Bebidas',
-  'Sobremesas',
-] as const;
-
-export type Category = (typeof CATEGORIES)[number];
+export type Category =
+  | 'Marmitas'
+  | 'Pratos do Dia'
+  | 'Acompanhamentos'
+  | 'Bebidas'
+  | 'Sobremesas';
 
 export type OrderStatus =
   | 'Recebido'
@@ -15,33 +12,33 @@ export type OrderStatus =
   | 'Concluído'
   | 'Cancelado';
 
-export type DeliveryModality = 'entrega' | 'retirada';
+export type DeliveryType = 'Entrega' | 'Retirada';
 
 export type PaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão';
 
-export interface Product {
+export interface MenuItem {
   id: string;
   name: string;
-  category: Category;
-  price: number;
-  ingredients: string;
   description: string;
+  ingredients: string;
+  price: number;
+  category: Category;
   imageUrl: string;
   available: boolean;
 }
 
 export interface CartItem {
-  product: Product;
+  menuItem: MenuItem;
   quantity: number;
-  observation?: string;
+  notes?: string;
 }
 
-export interface OrderItem {
-  productId: string;
+export interface OrderItemSnapshot {
+  menuItemId: string;
   name: string;
   unitPrice: number;
   quantity: number;
-  observation?: string;
+  notes?: string;
 }
 
 export interface OrderAddress {
@@ -54,32 +51,30 @@ export interface OrderAddress {
 export interface Order {
   id: string;
   code: string;
-  createdAt: string;
+  createdAt: string; // ISO string
   customerName: string;
   customerPhone: string;
-  modality: DeliveryModality;
+  deliveryType: DeliveryType;
   address?: OrderAddress;
   paymentMethod: PaymentMethod;
   changeFor?: number;
-  generalObservation?: string;
-  items: OrderItem[];
+  items: OrderItemSnapshot[];
   subtotal: number;
   deliveryFee: number;
   total: number;
   status: OrderStatus;
-  isDemo?: boolean;
+  generalNotes?: string;
 }
 
-export interface StoreSettings {
+export interface StoreConfig {
   name: string;
   subtitle: string;
   phone: string;
-  address: string;
   openingHours: string;
-  deliveryEstimate: string;
+  address: string;
   deliveryFee: number;
   isOpen: boolean;
 }
 
-export type AdminTab = 'dashboard' | 'orders' | 'menu' | 'settings';
 export type AppArea = 'public' | 'admin';
+export type AdminTab = 'dashboard' | 'orders' | 'menu' | 'settings';

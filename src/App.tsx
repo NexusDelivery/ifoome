@@ -1,180 +1,205 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import { useEffect, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Check, ChefHat } from 'lucide-react';
+import { AdminDashboard } from './components/admin/AdminDashboard';
+import { AdminLayout } from './components/admin/AdminLayout';
+import { AdminMenu } from './components/admin/AdminMenu';
+import { AdminOrders } from './components/admin/AdminOrders';
+import { AdminSettings } from './components/admin/AdminSettings';
+import { BrandLogo } from './components/BrandLogo';
 import {
-  AdminTab,
+  CheckoutView,
+  OrderConfirmationView,
+  OrderTrackingView,
+} from './components/public/CheckoutView';
+import { PublicStorefront } from './components/public/PublicStorefront';
+import {
+  INITIAL_DEMO_DISHES,
+  INITIAL_DEMO_ORDERS,
+  INITIAL_STORE_CONFIG,
+} from './data/demoData';
+import {
+  AdminSection,
   AppArea,
   CartItem,
-  DeliveryModality,
+  DeliveryMode,
+  Dish,
   Order,
   OrderStatus,
   PaymentMethod,
-  Product,
-  StoreSettings,
-} from './types';
-import { canTransitionOrderStatus } from './utils/format';
-import { dataStore } from './services/dataStore';
-import { PublicMenuPage } from './components/public/PublicMenuPage';
-import { AdminLayout } from './components/admin/AdminLayout';
-import { AdminDashboard } from './components/admin/AdminDashboard';
-import { AdminOrders, OrderFilter } from './components/admin/AdminOrders';
-import { AdminMenu } from './components/admin/AdminMenu';
-import { AdminSettings } from './components/admin/AdminSettings';
+  PublicView,
+  StoreConfig,
+} from './types/ifoome';
+import { calculateDailySummary } from './utils/formatters';
 
 export default function App() {
   const [area, setArea] = useState<AppArea>('public');
-  const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
-  const [ordersFilter, setOrdersFilter] = useState<OrderFilter>('Ativos');
+  const [publicView, setPublicView] = useState<PublicView>('cardapio');
+  const [adminSection, setAdminSection] = useState<AdminSection>('dashboard');
 
-  const [products, setProducts] = useState<Product[]>(
-    () => dataStore.loadInitialData().products
-  );
-  const [orders, setOrders] = useState<Order[]>(
-    () => dataStore.loadInitialData().orders
-  );
-  const [store, setStore] = useState<StoreSettings>(
-    () => dataStore.loadInitialData().store
-  );
+  const [storeConfig, setStoreConfig] = useState<StoreConfig>(INITIAL_STORE_CONFIG);
+  const [dishes, setDishes] = useState<Dish[]>(INITIAL_DEMO_DISHES);
+  const [orders, setOrders] = useState<Order[]>(INITIAL_DEMO_ORDERS);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [lastCreatedOrder, setLastCreatedOrder] = useState<Order | null>(null);
+  const [selectedAdminOrder, setSelectedAdminOrder] = useState<Order | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    dataStore.saveProducts(products);
-  }, [products]);
+  const summary = useMemo(() => calculateDailySummary(orders), [orders]);
 
-  useEffect(() => {
-    dataStore.saveOrders(orders);
-  }, [orders]);
-
-  useEffect(() => {
-    dataStore.saveStore(store);
-  }, [store]);
-
-  const activeOrdersCount = orders.filter(
-    (o) =>
-      o.status === 'Recebido' ||
-      o.status === 'Em preparo' ||
-      o.status === 'Saiu para entrega'
-  ).length;
-
-  const availableProductsCount = products.filter((p) => p.available).length;
-
-  const handleToggleStoreOpen = () => {
-    setStore((prev) => ({ ...prev, isOpen: !prev.isOpen }));
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((prev) => (prev === msg ? null : prev));
+    }, 2600);
   };
 
-  const handleUpdateOrderStatus = (orderId: string, nextStatus: OrderStatus) => {
-    setOrders((prev) =>
-      prev.map((order) => {
-        if (order.id !== orderId) return order;
-        if (!canTransitionOrderStatus(order.status, nextStatus)) {
-          return order;
-        }
-        return { ...order, status: nextStatus };
-      })
-    );
-  };
-
-  const handleSaveProduct = (savedProduct: Product) => {
-    setProducts((prev) => {
-      const exists = prev.some((p) => p.id === savedProduct.id);
-      if (exists) {
-        return prev.map((p) => (p.id === savedProduct.id ? savedProduct : p));
+  // Ações do Carrinho
+  const handleAddToCart = (dish: Dish, quantity: number, observation: string) => {
+    setCart((prev) => {
+      const existingIndex = prev.findIndex(
+        (item) =>
+          item.dishId === dish.id &&
+          item.observation.trim().toLowerCase() === observation.trim().toLowerCase()
+      );
+      if (existingIndex >= 0) {
+        return prev.map((item, idx) =>
+          idx === existingIndex
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
       }
-      return [savedProduct, ...prev];
+      return [
+        ...prev,
+        {
+          dishId: dish.id,
+          name: dish.name,
+          price: dish.price,
+          quantity,
+          observation,
+          imageUrl: dish.imageUrl,
+        },
+      ];
     });
+    showToast(`${quantity}x ${dish.name} adicionado ao carrinho`);
   };
 
-  const handleToggleProductAvailability = (productId: string) => {
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === productId ? { ...p, available: !p.available } : p
-      )
+  const handleUpdateCartQuantity = (index: number, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((item, idx) =>
+          idx === index ? { ...item, quantity: item.quantity + delta } : item
+        )
+        .filter((item) => item.quantity > 0)
     );
   };
 
-  const handleDeleteProduct = (productId: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
+  const handleRemoveCartItem = (index: number) => {
+    setCart((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleResetDemoData = () => {
-    const reset = dataStore.resetToDemo();
-    setProducts(reset.products);
-    setOrders(reset.orders);
-    setStore(reset.store);
-  };
-
-  const handleOpenOrdersWithFilter = (filter: OrderFilter) => {
-    setOrdersFilter(filter);
-    setAdminTab('orders');
-  };
-
-  const handlePlaceOrder = (orderInput: {
+  // Finalização de pedido (com regras de validação da RN-04)
+  const handleSubmitOrder = (payload: {
     customerName: string;
     customerPhone: string;
-    modality: DeliveryModality;
-    address?: {
-      street: string;
-      number: string;
-      neighborhood: string;
-      complement?: string;
-    };
+    deliveryMode: DeliveryMode;
+    street: string;
+    number: string;
+    neighborhood: string;
+    complement: string;
     paymentMethod: PaymentMethod;
     changeFor?: number;
-    generalObservation?: string;
-    items: CartItem[];
+    generalObservation: string;
   }): { ok: boolean; error?: string; order?: Order } => {
-    if (!store.isOpen) {
-      return { ok: false, error: 'O restaurante está fechado no momento.' };
-    }
-    if (orderInput.items.length === 0) {
-      return { ok: false, error: 'A sacola está vazia.' };
+    if (!storeConfig.isOpen) {
+      return {
+        ok: false,
+        error: 'O restaurante fechou no momento. Não é possível finalizar novos pedidos.',
+      };
     }
 
-    // Recalcula preços e valida disponibilidade usando os dados oficiais do cardápio (RN-01 / RN-04)
-    const snapshotItems = [];
-    for (const cartItem of orderInput.items) {
-      const catalogItem = products.find((p) => p.id === cartItem.product.id);
-      if (!catalogItem || !catalogItem.available) {
+    if (cart.length === 0) {
+      return {
+        ok: false,
+        error: 'Seu carrinho está vazio. Adicione pelo menos um prato.',
+      };
+    }
+
+    for (const cartItem of cart) {
+      const currentDish = dishes.find((d) => d.id === cartItem.dishId);
+      if (!currentDish || !currentDish.available) {
         return {
           ok: false,
-          error: `O prato "${cartItem.product.name}" não está mais disponível.`,
+          error: `O prato "${cartItem.name}" ficou indisponível. Remova-o para continuar.`,
         };
       }
-      snapshotItems.push({
-        productId: catalogItem.id,
-        name: catalogItem.name,
-        unitPrice: catalogItem.price,
-        quantity: cartItem.quantity,
-        observation: cartItem.observation,
-      });
     }
 
-    const subtotal = snapshotItems.reduce(
-      (acc, item) => acc + item.unitPrice * item.quantity,
+    if (!payload.customerName.trim()) {
+      return { ok: false, error: 'Informe seu nome para identificação do pedido.' };
+    }
+
+    const phoneDigits = payload.customerPhone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      return {
+        ok: false,
+        error: 'Informe um telefone ou WhatsApp válido com DDD (mínimo 10 dígitos).',
+      };
+    }
+
+    if (payload.deliveryMode === 'entrega') {
+      if (
+        !payload.street.trim() ||
+        !payload.number.trim() ||
+        !payload.neighborhood.trim()
+      ) {
+        return {
+          ok: false,
+          error: 'Para entrega, preencha Rua/Avenida, Número e Bairro.',
+        };
+      }
+    }
+
+    // Recalcula snapshot oficial pelos preços vigentes
+    const itemsSnapshot = cart.map((cartItem) => {
+      const official = dishes.find((d) => d.id === cartItem.dishId)!;
+      return {
+        dishId: official.id,
+        name: official.name,
+        unitPrice: official.price,
+        quantity: cartItem.quantity,
+        observation: cartItem.observation || undefined,
+      };
+    });
+
+    const subtotal = itemsSnapshot.reduce(
+      (sum, item) => sum + item.unitPrice * item.quantity,
       0
     );
-    const deliveryFee = orderInput.modality === 'entrega' ? store.deliveryFee : 0;
+    const deliveryFee =
+      payload.deliveryMode === 'entrega' ? storeConfig.deliveryFee : 0;
     const total = subtotal + deliveryFee;
 
-    const maxNumericCode = orders.reduce((max, o) => {
-      const parsed = Number.parseInt(o.code.replace(/\D/g, ''), 10);
-      return Number.isNaN(parsed) ? max : Math.max(max, parsed);
-    }, 1045);
-
+    const nextNumber = 1045 + orders.length;
     const newOrder: Order = {
       id: `ord-${Date.now()}`,
-      code: `#${maxNumericCode + 1}`,
+      code: `#${nextNumber}`,
       createdAt: new Date().toISOString(),
-      customerName: orderInput.customerName,
-      customerPhone: orderInput.customerPhone,
-      modality: orderInput.modality,
-      address: orderInput.address,
-      paymentMethod: orderInput.paymentMethod,
-      changeFor: orderInput.changeFor,
-      generalObservation: orderInput.generalObservation,
-      items: snapshotItems,
+      customerName: payload.customerName.trim(),
+      customerPhone: payload.customerPhone.trim(),
+      deliveryMode: payload.deliveryMode,
+      address:
+        payload.deliveryMode === 'entrega'
+          ? {
+              street: payload.street.trim(),
+              number: payload.number.trim(),
+              neighborhood: payload.neighborhood.trim(),
+              complement: payload.complement.trim() || undefined,
+            }
+          : undefined,
+      paymentMethod: payload.paymentMethod,
+      changeFor: payload.changeFor,
+      generalObservation: payload.generalObservation.trim() || undefined,
+      items: itemsSnapshot,
       subtotal,
       deliveryFee,
       total,
@@ -183,66 +208,216 @@ export default function App() {
     };
 
     setOrders((prev) => [newOrder, ...prev]);
+    setCart([]);
+    setLastCreatedOrder(newOrder);
+    setPublicView('confirmacao');
     return { ok: true, order: newOrder };
   };
 
-  if (area === 'public') {
-    return (
-      <PublicMenuPage
-        products={products}
-        store={store}
-        onSwitchToAdmin={() => setArea('admin')}
-        onPlaceOrder={handlePlaceOrder}
-      />
+  // Ações administrativas
+  const handleUpdateOrderStatus = (orderId: string, nextStatus: OrderStatus) => {
+    setOrders((prev) =>
+      prev.map((o) => (o.id === orderId ? { ...o, status: nextStatus } : o))
     );
-  }
+    showToast(`Status atualizado para "${nextStatus}"`);
+  };
+
+  const handleToggleDishAvailability = (dishId: string) => {
+    setDishes((prev) =>
+      prev.map((d) => (d.id === dishId ? { ...d, available: !d.available } : d))
+    );
+  };
+
+  const handleAddDish = (dishPayload: Omit<Dish, 'id'>) => {
+    const newDish: Dish = {
+      ...dishPayload,
+      id: `dish-${Date.now()}`,
+    };
+    setDishes((prev) => [newDish, ...prev]);
+    showToast(`"${newDish.name}" adicionado ao cardápio`);
+  };
+
+  const handleUpdateDish = (updated: Dish) => {
+    setDishes((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+    showToast(`"${updated.name}" atualizado`);
+  };
+
+  const handleDeleteDish = (dishId: string) => {
+    setDishes((prev) => prev.filter((d) => d.id !== dishId));
+    showToast('Prato removido do cardápio');
+  };
+
+  const handleToggleStoreOpen = () => {
+    setStoreConfig((prev) => {
+      const nextOpen = !prev.isOpen;
+      showToast(nextOpen ? 'Loja aberta para pedidos' : 'Loja fechada para novos pedidos');
+      return { ...prev, isOpen: nextOpen };
+    });
+  };
+
+  const handleOpenOrderDetailsFromDashboard = (order: Order) => {
+    setSelectedAdminOrder(order);
+    setAdminSection('pedidos');
+  };
 
   return (
-    <AdminLayout
-      activeTab={adminTab}
-      onSelectTab={setAdminTab}
-      store={store}
-      onToggleStoreOpen={handleToggleStoreOpen}
-      activeOrdersCount={activeOrdersCount}
-      onSwitchToPublic={() => setArea('public')}
-    >
-      {adminTab === 'dashboard' && (
-        <AdminDashboard
-          orders={orders}
-          productsCount={products.length}
-          availableProductsCount={availableProductsCount}
-          store={store}
-          onNavigateTab={setAdminTab}
-          onSelectOrdersFilter={handleOpenOrdersWithFilter}
-          onUpdateOrderStatus={handleUpdateOrderStatus}
-        />
+    <div className="min-h-screen bg-[#F6F9F7] text-[#263238]">
+      {area === 'public' ? (
+        <>
+          {/* Top Bar Pública (Contrato de 3 zonas) */}
+          <header className="sticky top-0 z-40 h-14 sm:h-16 bg-white/95 backdrop-blur-md border-b border-[#DCE6E0]">
+            <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-4 sm:gap-8">
+              <button
+                type="button"
+                onClick={() => setPublicView('cardapio')}
+                className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[#287A55] rounded-lg"
+              >
+                <BrandLogo variant="compact" />
+              </button>
+
+              <nav
+                aria-label="Navegação do cliente"
+                className="flex items-center gap-4 sm:gap-6 text-sm font-semibold"
+              >
+                <button
+                  type="button"
+                  onClick={() => setPublicView('cardapio')}
+                  className={`whitespace-nowrap shrink-0 py-1 border-b-2 transition-colors ${
+                    publicView === 'cardapio'
+                      ? 'border-[#287A55] text-[#287A55]'
+                      : 'border-transparent text-[#263238]/75 hover:text-[#263238]'
+                  }`}
+                >
+                  Cardápio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPublicView('acompanhar')}
+                  className={`whitespace-nowrap shrink-0 py-1 border-b-2 transition-colors ${
+                    publicView === 'acompanhar'
+                      ? 'border-[#287A55] text-[#287A55]'
+                      : 'border-transparent text-[#263238]/75 hover:text-[#263238]'
+                  }`}
+                >
+                  Pedidos
+                </button>
+              </nav>
+
+              <button
+                type="button"
+                onClick={() => setArea('admin')}
+                className="min-h-[38px] px-3 sm:px-4 py-1.5 rounded-xl bg-[#263238] text-white text-xs font-semibold hover:bg-[#1C262B] transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              >
+                <ChefHat className="w-3.5 h-3.5 text-[#F4C95D]" aria-hidden="true" />
+                <span>Painel do Lojista</span>
+              </button>
+            </div>
+          </header>
+
+          {/* Conteúdo da Área Pública */}
+          {publicView === 'cardapio' && (
+            <PublicStorefront
+              dishes={dishes}
+              storeConfig={storeConfig}
+              cart={cart}
+              onAddToCart={handleAddToCart}
+              onUpdateCartQuantity={handleUpdateCartQuantity}
+              onRemoveCartItem={handleRemoveCartItem}
+              onProceedToCheckout={() => setPublicView('checkout')}
+            />
+          )}
+
+          {publicView === 'checkout' && (
+            <CheckoutView
+              cart={cart}
+              dishes={dishes}
+              storeConfig={storeConfig}
+              onBackToMenu={() => setPublicView('cardapio')}
+              onSubmitOrder={handleSubmitOrder}
+            />
+          )}
+
+          {publicView === 'confirmacao' && lastCreatedOrder && (
+            <OrderConfirmationView
+              order={lastCreatedOrder}
+              storeConfig={storeConfig}
+              onTrackOrders={() => setPublicView('acompanhar')}
+              onBackToMenu={() => setPublicView('cardapio')}
+            />
+          )}
+
+          {publicView === 'acompanhar' && (
+            <OrderTrackingView
+              orders={orders}
+              onBackToMenu={() => setPublicView('cardapio')}
+            />
+          )}
+        </>
+      ) : (
+        <AdminLayout
+          activeSection={adminSection}
+          onSelectSection={setAdminSection}
+          activeOrdersCount={summary.activeOrdersCount}
+          storeConfig={storeConfig}
+          onToggleStoreOpen={handleToggleStoreOpen}
+          onSwitchToPublic={() => {
+            setArea('public');
+            setPublicView('cardapio');
+          }}
+        >
+          {adminSection === 'dashboard' && (
+            <AdminDashboard
+              orders={orders}
+              dishesCount={dishes.length}
+              availableDishesCount={dishes.filter((d) => d.available).length}
+              onNavigate={setAdminSection}
+              onUpdateOrderStatus={handleUpdateOrderStatus}
+              onOpenOrderDetails={handleOpenOrderDetailsFromDashboard}
+            />
+          )}
+
+          {adminSection === 'pedidos' && (
+            <AdminOrders
+              orders={orders}
+              selectedOrder={selectedAdminOrder}
+              onSelectOrder={setSelectedAdminOrder}
+              onUpdateOrderStatus={handleUpdateOrderStatus}
+            />
+          )}
+
+          {adminSection === 'cardapio' && (
+            <AdminMenu
+              dishes={dishes}
+              onAddDish={handleAddDish}
+              onUpdateDish={handleUpdateDish}
+              onDeleteDish={handleDeleteDish}
+              onToggleAvailability={handleToggleDishAvailability}
+            />
+          )}
+
+          {adminSection === 'configuracoes' && (
+            <AdminSettings
+              storeConfig={storeConfig}
+              onSaveConfig={(next) => {
+                setStoreConfig(next);
+                showToast('Configurações atualizadas');
+              }}
+            />
+          )}
+        </AdminLayout>
       )}
 
-      {adminTab === 'orders' && (
-        <AdminOrders
-          orders={orders}
-          filter={ordersFilter}
-          onChangeFilter={setOrdersFilter}
-          onUpdateOrderStatus={handleUpdateOrderStatus}
-        />
+      {/* Feedback Toast Discreto */}
+      {toastMessage && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-20 lg:bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl bg-[#263238] text-white text-xs sm:text-sm font-semibold shadow-xl flex items-center gap-2 whitespace-nowrap"
+        >
+          <Check className="w-4 h-4 text-[#F4C95D] shrink-0" aria-hidden="true" />
+          <span>{toastMessage}</span>
+        </div>
       )}
-
-      {adminTab === 'menu' && (
-        <AdminMenu
-          products={products}
-          onSaveProduct={handleSaveProduct}
-          onToggleAvailability={handleToggleProductAvailability}
-          onDeleteProduct={handleDeleteProduct}
-        />
-      )}
-
-      {adminTab === 'settings' && (
-        <AdminSettings
-          settings={store}
-          onSaveSettings={setStore}
-          onResetDemoData={handleResetDemoData}
-        />
-      )}
-    </AdminLayout>
+    </div>
   );
 }
