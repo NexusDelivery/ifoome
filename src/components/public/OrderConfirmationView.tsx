@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ArrowLeft,
+  Check,
   CheckCircle2,
+  Copy,
   MapPin,
   MessageCircle,
   ShoppingBag,
@@ -11,6 +13,7 @@ import {
   buildWhatsAppOrderMessage,
   formatCurrency,
   formatOrderTime,
+  normalizeBrazilianPhoneForWa,
 } from '../../utils/format';
 import { StatusBadge } from '../StatusBadge';
 
@@ -25,11 +28,24 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
   store,
   onBackToMenu,
 }) => {
-  const cleanPhone = store.phone.replace(/\D/g, '');
-  const waMessage = encodeURIComponent(buildWhatsAppOrderMessage(order, store.name));
-  const waUrl = cleanPhone
-    ? `https://wa.me/55${cleanPhone}?text=${waMessage}`
-    : `https://wa.me/?text=${waMessage}`;
+  const [copied, setCopied] = useState(false);
+
+  const formattedMessage = buildWhatsAppOrderMessage(order, store.name);
+  const waPhone = normalizeBrazilianPhoneForWa(store.phone);
+  const waUrl = waPhone
+    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(formattedMessage)}`
+    : null;
+
+  const handleCopyMessage = async () => {
+    try {
+      await navigator.clipboard.writeText(formattedMessage);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Fallback simples se clipboard API não estiver disponível
+      setCopied(false);
+    }
+  };
 
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6">
@@ -39,7 +55,7 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
             <CheckCircle2 className="w-8 h-8" aria-hidden="true" />
           </div>
           <p className="text-xs font-semibold text-[#027A48]">
-            Pedido enviado para {store.name}
+            Pedido registrado no sistema de {store.name}
           </p>
           <h1 className="font-display font-extrabold text-2xl sm:text-3xl text-[#382B25]">
             Pedido {order.code} Recebido!
@@ -120,29 +136,68 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
               ? ` (troco para ${formatCurrency(order.changeFor)})`
               : ''}
           </p>
+          {order.generalObservation && (
+            <p>
+              <strong className="text-[#382B25]">Observações:</strong>{' '}
+              {order.generalObservation}
+            </p>
+          )}
         </div>
 
-        {/* Ações */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <a
-            href={waUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 min-h-[48px] px-4 py-3 rounded-xl bg-[#027A48] hover:bg-[#05603A] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
-          >
-            <MessageCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span>Enviar resumo no WhatsApp</span>
-          </a>
+        {/* Bloco honesto e claro de encaminhamento via WhatsApp */}
+        <div className="rounded-2xl bg-[#FFF8EF] border border-[#EAE0D5] p-4 space-y-3">
+          <div className="space-y-1">
+            <p className="text-sm font-bold text-[#382B25]">
+              Encaminhar pedido pelo WhatsApp (opcional)
+            </p>
+            <p className="text-xs text-[#6E5D55] leading-relaxed">
+              {waUrl
+                ? `Clique abaixo para abrir o WhatsApp do restaurante (${store.phone}) com a mensagem pronta. O envio só acontece após você confirmar dentro do WhatsApp.`
+                : 'O restaurante ainda não cadastrou um número de WhatsApp comercial. Você pode copiar o resumo abaixo se precisar.'}
+            </p>
+          </div>
 
-          <button
-            type="button"
-            onClick={onBackToMenu}
-            className="flex-1 min-h-[48px] px-4 py-3 rounded-xl border border-[#DDD2C6] text-sm font-semibold text-[#382B25] hover:bg-[#FFF8EF] flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
-          >
-            <ArrowLeft className="w-4 h-4 shrink-0" aria-hidden="true" />
-            <span>Fazer novo pedido</span>
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            {waUrl && (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-[#027A48] hover:bg-[#05603A] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
+              >
+                <MessageCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+                <span>Abrir WhatsApp com pedido</span>
+              </a>
+            )}
+
+            <button
+              type="button"
+              onClick={handleCopyMessage}
+              className="min-h-[44px] px-4 py-2.5 rounded-xl border border-[#DDD2C6] bg-[#FFFFFF] hover:bg-[#F7EFE5] text-sm font-semibold text-[#382B25] flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-4 h-4 text-[#027A48] shrink-0" aria-hidden="true" />
+                  <span>Mensagem copiada!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4 text-[#F47B35] shrink-0" aria-hidden="true" />
+                  <span>Copiar resumo</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onBackToMenu}
+          className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-[#DDD2C6] text-sm font-semibold text-[#382B25] hover:bg-[#FFF8EF] flex items-center justify-center gap-2 transition-colors whitespace-nowrap"
+        >
+          <ArrowLeft className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span>Fazer novo pedido</span>
+        </button>
       </div>
     </div>
   );

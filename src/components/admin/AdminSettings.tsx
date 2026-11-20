@@ -1,227 +1,299 @@
-import React, { useState } from 'react';
-import { CheckCircle2, Store } from 'lucide-react';
-import { StoreConfig } from '../../types/ifoome';
-import { formatPhoneMask } from '../../utils/formatters';
+import React, { useEffect, useState } from 'react';
+import { AlertCircle, CheckCircle2, RotateCcw, Save, Store } from 'lucide-react';
+import { StoreSettings } from '../../types';
+import { formatPhoneMask } from '../../utils/format';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 interface AdminSettingsProps {
-  storeConfig: StoreConfig;
-  onSaveConfig: (next: StoreConfig) => void;
+  settings: StoreSettings;
+  onSaveSettings: (updated: StoreSettings) => void;
+  onResetDemoData: () => void;
 }
 
 export const AdminSettings: React.FC<AdminSettingsProps> = ({
-  storeConfig,
-  onSaveConfig,
+  settings,
+  onSaveSettings,
+  onResetDemoData,
 }) => {
-  const [name, setName] = useState(storeConfig.name);
-  const [subtitle, setSubtitle] = useState(storeConfig.subtitle);
-  const [isOpen, setIsOpen] = useState(storeConfig.isOpen);
-  const [openingHours, setOpeningHours] = useState(storeConfig.openingHours);
-  const [estimatedTime, setEstimatedTime] = useState(storeConfig.estimatedTime);
-  const [phone, setPhone] = useState(storeConfig.phone);
-  const [pickupAddress, setPickupAddress] = useState(storeConfig.pickupAddress);
-  const [deliveryFeeInput, setDeliveryFeeInput] = useState(
-    storeConfig.deliveryFee.toFixed(2).replace('.', ',')
+  const [form, setForm] = useState<StoreSettings>(settings);
+  const [feeText, setFeeText] = useState(
+    settings.deliveryFee.toFixed(2).replace('.', ',')
   );
-  const [savedNotice, setSavedNotice] = useState(false);
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+
+  useEffect(() => {
+    setForm(settings);
+    setFeeText(settings.deliveryFee.toFixed(2).replace('.', ','));
+  }, [settings]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedFee = Number(deliveryFeeInput.replace(',', '.'));
-    onSaveConfig({
-      name: name.trim() || storeConfig.name,
-      subtitle: subtitle.trim(),
-      isOpen,
-      openingHours: openingHours.trim(),
-      estimatedTime: estimatedTime.trim(),
-      phone: phone.trim(),
-      pickupAddress: pickupAddress.trim(),
-      deliveryFee: Number.isNaN(parsedFee) || parsedFee < 0 ? 0 : parsedFee,
+    setErrorMsg(null);
+    setSavedNotice(null);
+
+    if (form.name.trim().length < 2) {
+      setErrorMsg('Informe o nome do estabelecimento.');
+      return;
+    }
+
+    const phoneDigits = form.phone.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      setErrorMsg(
+        'Informe um telefone/WhatsApp comercial válido com DDD (10 ou 11 dígitos) para receber encaminhamentos de pedidos.'
+      );
+      return;
+    }
+
+    const parsedFee = Number(feeText.replace(',', '.'));
+    if (Number.isNaN(parsedFee) || parsedFee < 0) {
+      setErrorMsg('Informe uma taxa de entrega válida (use 0,00 para entrega grátis).');
+      return;
+    }
+
+    const safeFee = Math.round(parsedFee * 100) / 100;
+
+    onSaveSettings({
+      ...form,
+      name: form.name.trim(),
+      subtitle: form.subtitle.trim(),
+      address: form.address.trim(),
+      openingHours: form.openingHours.trim(),
+      deliveryEstimate: form.deliveryEstimate.trim(),
+      deliveryFee: safeFee,
     });
-    setSavedNotice(true);
-    setTimeout(() => setSavedNotice(false), 3000);
+    setSavedNotice('Configurações atualizadas com sucesso.');
+    window.setTimeout(() => setSavedNotice(null), 3500);
   };
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-2xl space-y-5">
       <div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#263238] tracking-tight">
-          Configurações do Estabelecimento
+        <h2 className="font-display font-bold text-2xl text-[#382B25]">
+          Configurações do Restaurante
         </h2>
-        <p className="mt-1 text-sm text-[#263238]/75">
-          Ajuste o nome da marmitaria, horário de funcionamento, contato e taxa de entrega.
+        <p className="text-sm text-[#6E5D55]">
+          Configure o WhatsApp comercial, informações do cardápio público e taxa de entrega.
         </p>
       </div>
 
       {savedNotice && (
         <div
           role="status"
-          className="rounded-xl bg-[#DDEFE3] border border-[#287A55]/30 px-4 py-3 text-sm font-semibold text-[#1E6143] flex items-center gap-2.5"
+          className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-[#ECFDF3] border border-[#A6F4C5] text-sm font-semibold text-[#027A48]"
         >
-          <CheckCircle2 className="w-5 h-5 shrink-0" aria-hidden="true" />
-          <span>Configurações salvas e aplicadas ao cardápio público.</span>
+          <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span>{savedNotice}</span>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <section className="bg-white rounded-2xl border border-[#DCE6E0] p-5 sm:p-6 space-y-4">
-          <h3 className="text-base font-bold text-[#263238]">Dados do restaurante</h3>
+      {errorMsg && (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-[#FDECE9] border border-[#FECDCA] text-sm font-medium text-[#B42318]"
+        >
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
 
-          <div>
+      <form
+        onSubmit={handleSubmit}
+        className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-5 sm:p-6 space-y-4"
+      >
+        <div className="flex items-center justify-between gap-4 pb-4 border-b border-[#F2EAE0]">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FFF3E6] text-[#F47B35] flex items-center justify-center shrink-0">
+              <Store className="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-[#382B25]">
+                Status de atendimento
+              </p>
+              <p className="text-xs text-[#6E5D55]">
+                Quando fechada, clientes consultam o cardápio mas não enviam pedidos.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.isOpen}
+            onClick={() => setForm({ ...form, isOpen: !form.isOpen })}
+            className={`min-h-[44px] px-4 py-2 rounded-xl border text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
+              form.isOpen
+                ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
+                : 'bg-[#FDECE9] text-[#B42318] border-[#FECDCA]'
+            }`}
+          >
+            {form.isOpen ? 'Aberta' : 'Fechada'}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
             <label
               htmlFor="store-name"
-              className="block text-sm font-semibold text-[#263238] mb-1.5"
+              className="block text-xs font-semibold text-[#382B25] mb-1.5"
             >
-              Nome do estabelecimento
+              Nome do estabelecimento *
             </label>
             <input
               id="store-name"
               type="text"
               required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
             />
           </div>
 
-          <div>
+          <div className="sm:col-span-2">
             <label
               htmlFor="store-subtitle"
-              className="block text-sm font-semibold text-[#263238] mb-1.5"
+              className="block text-xs font-semibold text-[#382B25] mb-1.5"
             >
-              Frase de apresentação no cardápio
+              Descrição curta
             </label>
             <input
               id="store-subtitle"
               type="text"
-              value={subtitle}
-              onChange={(e) => setSubtitle(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+              value={form.subtitle}
+              onChange={(e) => setForm({ ...form, subtitle: e.target.value })}
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
             />
-          </div>
-        </section>
-
-        <section className="bg-white rounded-2xl border border-[#DCE6E0] p-5 sm:p-6 space-y-4">
-          <h3 className="text-base font-bold text-[#263238]">Funcionamento e entrega</h3>
-
-          <button
-            type="button"
-            role="switch"
-            aria-checked={isOpen}
-            onClick={() => setIsOpen((prev) => !prev)}
-            className={`w-full min-h-[52px] px-4 py-3 rounded-xl border flex items-center justify-between text-sm font-semibold transition-colors ${
-              isOpen
-                ? 'bg-[#DDEFE3]/70 border-[#287A55]/30 text-[#1E6143]'
-                : 'bg-[#F4C95D]/25 border-[#F4C95D] text-[#263238]'
-            }`}
-          >
-            <span className="flex items-center gap-2.5">
-              <Store className="w-5 h-5" aria-hidden="true" />
-              <span>Recebimento de novos pedidos no cardápio</span>
-            </span>
-            <span className="font-bold">
-              {isOpen ? 'Loja Aberta' : 'Loja Fechada'}
-            </span>
-          </button>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="store-hours"
-                className="block text-sm font-semibold text-[#263238] mb-1.5"
-              >
-                Horário de funcionamento
-              </label>
-              <input
-                id="store-hours"
-                type="text"
-                value={openingHours}
-                onChange={(e) => setOpeningHours(e.target.value)}
-                placeholder="Ex.: Seg a Sáb · 10h30 às 15h00"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm focus:outline-none focus:ring-2 focus:ring-[#287A55]"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="store-eta"
-                className="block text-sm font-semibold text-[#263238] mb-1.5"
-              >
-                Tempo médio estimado
-              </label>
-              <input
-                id="store-eta"
-                type="text"
-                value={estimatedTime}
-                onChange={(e) => setEstimatedTime(e.target.value)}
-                placeholder="Ex.: 30 a 45 min"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm focus:outline-none focus:ring-2 focus:ring-[#287A55]"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="store-phone"
-                className="block text-sm font-semibold text-[#263238] mb-1.5"
-              >
-                Telefone / WhatsApp de contato
-              </label>
-              <input
-                id="store-phone"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(formatPhoneMask(e.target.value))}
-                placeholder="(11) 98765-4321"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-[#287A55]"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="store-fee"
-                className="block text-sm font-semibold text-[#263238] mb-1.5"
-              >
-                Taxa de entrega fixa (R$)
-              </label>
-              <input
-                id="store-fee"
-                type="text"
-                inputMode="decimal"
-                value={deliveryFeeInput}
-                onChange={(e) => setDeliveryFeeInput(e.target.value)}
-                placeholder="5,00"
-                className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-[#287A55]"
-              />
-            </div>
           </div>
 
           <div>
             <label
-              htmlFor="store-address"
-              className="block text-sm font-semibold text-[#263238] mb-1.5"
+              htmlFor="store-phone"
+              className="block text-xs font-semibold text-[#382B25] mb-1.5"
             >
-              Endereço do estabelecimento (para retirada)
+              Telefone / WhatsApp comercial *
+            </label>
+            <input
+              id="store-phone"
+              type="tel"
+              required
+              value={form.phone}
+              onChange={(e) =>
+                setForm({ ...form, phone: formatPhoneMask(e.target.value) })
+              }
+              placeholder="(11) 98765-4321"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] tabular-nums focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+            />
+            <p className="text-xs text-[#6E5D55] mt-1">
+              Usado para encaminhar os pedidos confirmados no WhatsApp.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="store-hours"
+              className="block text-xs font-semibold text-[#382B25] mb-1.5"
+            >
+              Horário de funcionamento
+            </label>
+            <input
+              id="store-hours"
+              type="text"
+              value={form.openingHours}
+              onChange={(e) => setForm({ ...form, openingHours: e.target.value })}
+              placeholder="Seg a Sáb · 10h30 às 15h00"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label
+              htmlFor="store-address"
+              className="block text-xs font-semibold text-[#382B25] mb-1.5"
+            >
+              Endereço (para retirada no balcão)
             </label>
             <input
               id="store-address"
               type="text"
-              value={pickupAddress}
-              onChange={(e) => setPickupAddress(e.target.value)}
-              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+              value={form.address}
+              onChange={(e) => setForm({ ...form, address: e.target.value })}
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
             />
           </div>
-        </section>
 
-        <div className="flex justify-end">
+          <div>
+            <label
+              htmlFor="store-fee"
+              className="block text-xs font-semibold text-[#382B25] mb-1.5"
+            >
+              Taxa de entrega fixa (R$)
+            </label>
+            <input
+              id="store-fee"
+              type="text"
+              inputMode="decimal"
+              value={feeText}
+              onChange={(e) => setFeeText(e.target.value)}
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] tabular-nums focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+            />
+            <p className="text-xs text-[#6E5D55] mt-1">
+              Use 0,00 para oferecer entrega grátis. Retirada é sempre gratuita.
+            </p>
+          </div>
+
+          <div>
+            <label
+              htmlFor="store-estimate"
+              className="block text-xs font-semibold text-[#382B25] mb-1.5"
+            >
+              Tempo médio estimado
+            </label>
+            <input
+              id="store-estimate"
+              type="text"
+              value={form.deliveryEstimate}
+              onChange={(e) => setForm({ ...form, deliveryEstimate: e.target.value })}
+              placeholder="30–45 min"
+              className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+            />
+          </div>
+        </div>
+
+        <div className="pt-2 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => setConfirmResetOpen(true)}
+            className="min-h-[44px] px-4 py-2.5 rounded-xl border border-[#DDD2C6] text-xs sm:text-sm font-semibold text-[#6E5D55] hover:bg-[#FFF8EF] flex items-center justify-center gap-2 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" aria-hidden="true" />
+            <span>Restaurar dados de exemplo</span>
+          </button>
+
           <button
             type="submit"
-            className="min-h-[48px] px-6 py-3 rounded-xl bg-[#287A55] text-white text-sm font-semibold hover:bg-[#1E6143] transition-colors"
+            className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
           >
-            Salvar configurações
+            <Save className="w-4 h-4" aria-hidden="true" />
+            <span>Salvar Configurações</span>
           </button>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={confirmResetOpen}
+        title="Restaurar dados de demonstração?"
+        description="Isso substituirá o cardápio, os pedidos e as configurações salvos neste navegador pelos exemplos iniciais."
+        confirmLabel="Sim, restaurar exemplos"
+        destructive
+        onCancel={() => setConfirmResetOpen(false)}
+        onConfirm={() => {
+          onResetDemoData();
+          setConfirmResetOpen(false);
+          setSavedNotice('Dados de demonstração restaurados.');
+          window.setTimeout(() => setSavedNotice(null), 3500);
+        }}
+      />
     </div>
   );
 };

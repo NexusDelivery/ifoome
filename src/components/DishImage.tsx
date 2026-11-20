@@ -15,10 +15,10 @@ export const DishImage: React.FC<DishImageProps> = ({ src, alt, className = '' }
       <div
         role="img"
         aria-label={alt}
-        className={`flex flex-col items-center justify-center bg-gradient-to-br from-[#DDEFE3] to-[#F6F9F7] text-[#287A55] ${className}`}
+        className={`w-full aspect-[16/10] flex flex-col items-center justify-center bg-gradient-to-br from-[#FFF3E6] to-[#FFF8EF] text-[#F47B35] ${className}`}
       >
         <UtensilsCrossed className="w-7 h-7 mb-1.5 opacity-80" aria-hidden="true" />
-        <span className="text-xs font-medium text-[#263238]/70 px-3 text-center line-clamp-1">
+        <span className="text-xs font-medium text-[#6E5D55] px-3 text-center line-clamp-1">
           {alt}
         </span>
       </div>
@@ -31,7 +31,7 @@ export const DishImage: React.FC<DishImageProps> = ({ src, alt, className = '' }
       alt={alt}
       referrerPolicy="no-referrer"
       onError={() => setHasError(true)}
-      className={`object-cover ${className}`}
+      className={`w-full aspect-[16/10] object-cover ${className}`}
     />
   );
 };

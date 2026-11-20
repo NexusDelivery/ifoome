@@ -151,27 +151,49 @@ As especificações detalhadas do MVP estão documentadas nos seguintes arquivos
 
 ## 11. Identidade Visual e UX/UI (Etapa 2 — UX/UI Designer)
 
-### Marca e Personalidade
-- **Logotipo `iFoome`:** Símbolo geométrico de marmita/cloche estilizada em verde e amarelo acompanhado do *wordmark* **`iFoome`** com destaque em **Outfit** extrabold.
-- **Atributos transmitidos:** praticidade no uso diário, confiança para o cliente e agilidade para a operação solo no celular durante o horário de pico da cozinha.
+### Identidade de Marca e Paleta
+- **Marca:** **iFoome Delivery** com símbolo próprio (*cloche* estilizado) e destaque tipográfico para **iFoome**.
+- **Paleta oficial:**
+  - Laranja Energia: `#F47B35` (ações de adição, destaques positivos e ícones de apoio)
+  - Vermelho Apetite: `#D94B3D` (botões primários de conversão, marca e alertas ativos)
+  - Creme Acolhedor: `#FFF8EF` (fundo principal leve para leitura confortável)
+  - Marrom Escuro: `#382B25` (tipografia principal de alto contraste e cabeçalhos)
+- **Tipografia:** `Bricolage Grotesque` para títulos e marca + `Plus Jakarta Sans` para textos e formulários, com algarismos tabulares (`tabular-nums`) em todos os preços, códigos e indicadores.
 
-### Paleta de Cores Oficial
-| Cor | Código Hex | Aplicação |
-| :--- | :--- | :--- |
-| **Verde Principal** | `#287A55` | Botões primários (CTAs), marca e ações principais |
-| **Verde Claro** | `#DDEFE3` | Estados ativos suaves, destaques de disponibilidade e fundos de apoio |
-| **Amarelo** | `#F4C95D` | Alertas de atenção, pedidos recém-chegados (`Recebido`) e detalhes da marca |
-| **Branco** | `#FFFFFF` | Cartões, superfícies de conteúdo e áreas de leitura |
-| **Grafite** | `#263238` | Textos principais, contrastes elevados e controles secundários |
+### Arquitetura de Navegação e Responsividade
+- **Área Pública (Cliente):** cabeçalho enxuto, banner do estabelecimento, filtros por categoria e busca, grade de pratos disponíveis, modal de detalhes/observações, sacola lateral/sheet, tela dedicada de finalização e tela de confirmação com link complementar para WhatsApp.
+- **Área Administrativa (Seu Raimundo):** menu lateral fixo em telas grandes (`lg+`) e barra de abas inferior ergonômica no celular (zona natural do polegar, alvos de toque mínimos de `44px`), contemplando **Visão Geral**, **Pedidos**, **Cardápio** e **Configurações**.
+- **Acessibilidade:** todos os status combinam ícone e texto explícito (nunca dependem apenas da cor), além de confirmações antes de ações destrutivas (cancelar pedido ou excluir prato).
 
-### Tipografia e Acessibilidade
-- **Títulos e Marca:** `Outfit` (pesos 600–800) para leitura rápida e hierarquia clara.
-- **Corpo e Formulários:** `Plus Jakarta Sans` (pesos 400–700) para conforto visual em telas pequenas.
-- **Códigos, Horários e Valores:** `JetBrains Mono` com algarismos tabulares (`tabular-nums`).
-- **Acessibilidade e Ergonomia:** áreas de toque mínimas de `44px`, navegação administrativa por **barra inferior na zona do polegar** no celular e **menu lateral fixo** em telas grandes, além de indicadores de status sempre combinando **ícone + rótulo textual**.
+---
+
+## 12. Implementação Funcional e Assistente de IA (Etapa 3 — AI Builder)
+
+### Funcionalidades Integradas em Operação
+- **Cardápio Digital & Gestão de Produtos:** cadastro, edição, upload local/link de fotografia, categorias, validações de nome/preço, alternância de disponibilidade em 1 toque e reflexão imediata na vitrine pública.
+- **Fluxo Público de Compra:** exibição exclusiva de pratos disponíveis, modal de detalhes com observações por item, sacola sincronizada em tempo real com preços e disponibilidade vigentes, checkout completo (Entrega com endereço obrigatório vs. Retirada gratuita; Pix, Dinheiro com troco validado e Cartão) e confirmação com código próprio.
+- **Painel de Pedidos & Transições Seguras:** acompanhamento detalhado dos pedidos, atualização de status (`Recebido` → `Em preparo` → `Saiu para entrega` / `Pronto para retirada` → `Concluído`, além de `Cancelado`) com bloqueio de transições incoerentes.
+- **Dashboard em Tempo Real:** indicadores calculados dinamicamente a partir dos pedidos registrados (*Pedidos recebidos no dia*, *Total vendido no dia* sem somar cancelados, *Aguardando atendimento*, *Pedidos em preparo*, *Enviados para entrega* e *Pedidos recentes*).
+- **WhatsApp Complementar:** configuração do número comercial do restaurante nas Configurações e geração de link pronto (`wa.me`) + opção de copiar resumo do pedido na confirmação, com envio iniciado exclusivamente pelo usuário.
+- **Assistente de IA para Descrições (`server.ts`):** rota server-side `POST /api/ai/describe-dish` usando `@google/genai` (`gemini-4-hydrogen`) para sugerir descrições comerciais editáveis a partir do nome e ingredientes, sem expor chave de API no navegador e com tratamento explícito de indisponibilidade/erros.
+
+### Recursos Dependentes de Integração Externa / Próximas Etapas
+- **Persistência em Nuvem / Banco de Dados:** os dados de cardápio, pedidos e configurações estão centralizados na camada `src/services/dataStore.ts` utilizando armazenamento local do navegador (`localStorage`) como ponte temporária até a integração definitiva na etapa de **Tech Lead**.
+- **Chave da API de IA (`GEMINI_API_KEY`):** a geração de descrições por IA depende da variável `GEMINI_API_KEY` configurada no ambiente do servidor; caso ausente, o cadastro e a edição manual dos pratos continuam operando normalmente.
+
+---
+
+## 13. Publicação Automática (GitHub Actions)
+
+O projeto possui workflow de integração e entrega contínua configurado em `.github/workflows/deploy.yml` para facilitar testes da equipe em diferentes dispositivos:
+
+- **Branch de publicação automática:** `main`.
+- **Fluxo automático:** a cada novo `push` na branch `main`, o GitHub Actions instala as dependências, valida os tipos (`npm run lint`), gera o build estático (`npm run build` com `base` ajustado via `VITE_BASE_PATH` pelo `actions/configure-pages`) e publica o diretório `dist/` no **GitHub Pages**.
+- **Observação sobre IA no deploy estático:** o GitHub Pages hospeda apenas os arquivos estáticos do frontend (`dist/`). O fluxo principal (cardápio, sacola, pedidos, WhatsApp e painel administrativo com `localStorage`) funciona integralmente; já a sugestão automática de descrições com IA (`/api/ai/describe-dish`) requer servidor Node (`server.ts`) com `GEMINI_API_KEY` configurada e degrada com aviso amigável para preenchimento manual no deploy estático.
 
 ---
 
 *Este documento serve como referência central de contexto para todas as etapas do desenvolvimento do **iFoome Delivery** e deverá ser atualizado conforme novas decisões forem consolidadas, preservando os princípios estabelecidos desde a concepção.*
+
 
 

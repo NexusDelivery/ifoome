@@ -1,308 +1,357 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Check,
   Edit3,
-  Eye,
-  EyeOff,
-  ImagePlus,
+  Loader2,
   Plus,
   Search,
   Sparkles,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
-import { DISH_CATEGORIES, INITIAL_DEMO_DISHES } from '../../data/demoData';
-import { Dish, DishCategory } from '../../types/ifoome';
-import { formatCurrency } from '../../utils/formatters';
-import { ConfirmModal } from '../ConfirmModal';
+import { CATEGORIES, Category, Product } from '../../types';
+import { PRESET_DISH_IMAGES } from '../../data/mockData';
+import { formatCurrency } from '../../utils/format';
+import { generateDishDescription } from '../../services/aiService';
 import { DishImage } from '../DishImage';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 interface AdminMenuProps {
-  dishes: Dish[];
-  onAddDish: (dish: Omit<Dish, 'id'>) => void;
-  onUpdateDish: (dish: Dish) => void;
-  onDeleteDish: (dishId: string) => void;
-  onToggleAvailability: (dishId: string) => void;
+  products: Product[];
+  onSaveProduct: (product: Product) => void;
+  onToggleAvailability: (productId: string) => void;
+  onDeleteProduct: (productId: string) => void;
+}
+
+interface ProductFormState {
+  id?: string;
+  name: string;
+  category: Category;
+  priceText: string;
+  ingredients: string;
+  description: string;
+  imageUrl: string;
+  available: boolean;
+}
+
+const EMPTY_FORM: ProductFormState = {
+  name: '',
+  category: 'Marmitas',
+  priceText: '',
+  ingredients: '',
+  description: '',
+  imageUrl: PRESET_DISH_IMAGES[0].url,
+  available: true,
+};
+
+function resizeImageFileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo de imagem.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Arquivo selecionado não é uma imagem válida.'));
+      img.onload = () => {
+        const maxWidth = 720;
+        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(String(reader.result));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export const AdminMenu: React.FC<AdminMenuProps> = ({
-  dishes,
-  onAddDish,
-  onUpdateDish,
-  onDeleteDish,
+  products,
+  onSaveProduct,
   onToggleAvailability,
+  onDeleteProduct,
 }) => {
-  const [selectedCategory, setSelectedCategory] = useState<'Todas' | DishCategory>('Todas');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingDish, setEditingDish] = useState<Dish | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Dish | null>(null);
-
-  // Form state
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<DishCategory>('Marmitas');
-  const [priceInput, setPriceInput] = useState('');
-  const [ingredients, setIngredients] = useState('');
-  const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [available, setAvailable] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<'Todas' | Category>('Todas');
+  const [search, setSearch] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [form, setForm] = useState<ProductFormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
-  const [aiNotice, setAiNotice] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiStatus, setAiStatus] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const filteredDishes = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    return dishes.filter((dish) => {
-      if (selectedCategory !== 'Todas' && dish.category !== selectedCategory) {
-        return false;
-      }
-      if (!query) return true;
-      return (
-        dish.name.toLowerCase().includes(query) ||
-        dish.ingredients.toLowerCase().includes(query)
-      );
+  const filteredProducts = products.filter((p) => {
+    const matchesCat = selectedCategory === 'Todas' || p.category === selectedCategory;
+    const query = search.trim().toLowerCase();
+    const matchesSearch =
+      !query ||
+      p.name.toLowerCase().includes(query) ||
+      p.ingredients.toLowerCase().includes(query);
+    return matchesCat && matchesSearch;
+  });
+
+  const openNewModal = () => {
+    setForm(EMPTY_FORM);
+    setFormError(null);
+    setAiStatus(null);
+    setAiLoading(false);
+    setModalOpen(true);
+  };
+
+  const openEditModal = (product: Product) => {
+    setForm({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      priceText: product.price.toFixed(2).replace('.', ','),
+      ingredients: product.ingredients,
+      description: product.description,
+      imageUrl: product.imageUrl,
+      available: product.available,
     });
-  }, [dishes, selectedCategory, searchQuery]);
-
-  const openNewForm = () => {
-    setEditingDish(null);
-    setName('');
-    setCategory('Marmitas');
-    setPriceInput('');
-    setIngredients('');
-    setDescription('');
-    setImageUrl(INITIAL_DEMO_DISHES[0].imageUrl);
-    setAvailable(true);
     setFormError(null);
-    setAiNotice(null);
-    setIsFormOpen(true);
+    setAiStatus(null);
+    setAiLoading(false);
+    setModalOpen(true);
   };
 
-  const openEditForm = (dish: Dish) => {
-    setEditingDish(dish);
-    setName(dish.name);
-    setCategory(dish.category);
-    setPriceInput(dish.price.toFixed(2).replace('.', ','));
-    setIngredients(dish.ingredients);
-    setDescription(dish.description);
-    setImageUrl(dish.imageUrl);
-    setAvailable(dish.available);
-    setFormError(null);
-    setAiNotice(null);
-    setIsFormOpen(true);
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedName = form.name.trim();
+    const parsedPrice = Number(form.priceText.replace(',', '.'));
+
+    if (trimmedName.length < 2) {
+      setFormError('Informe um nome válido para o prato (pelo menos 2 caracteres).');
+      return;
+    }
+    if (!CATEGORIES.includes(form.category)) {
+      setFormError('Selecione uma categoria válida.');
+      return;
+    }
+    if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
+      setFormError('Informe um preço válido maior que R$ 0,00.');
+      return;
+    }
+
+    onSaveProduct({
+      id: form.id ?? `prod-${Date.now()}`,
+      name: trimmedName,
+      category: form.category,
+      price: Math.round(parsedPrice * 100) / 100,
+      ingredients: form.ingredients.trim(),
+      description: form.description.trim(),
+      imageUrl: form.imageUrl.trim(),
+      available: form.available,
+    });
+    setModalOpen(false);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGenerateAiDescription = async () => {
+    setAiStatus(null);
+
+    if (form.name.trim().length < 2 || form.ingredients.trim().length < 3) {
+      setAiStatus({
+        type: 'error',
+        message:
+          'Preencha primeiro o Nome do prato e os Ingredientes principais para gerar a sugestão.',
+      });
+      return;
+    }
+
+    setAiLoading(true);
+    const result = await generateDishDescription({
+      name: form.name.trim(),
+      ingredients: form.ingredients.trim(),
+      category: form.category,
+    });
+    setAiLoading(false);
+
+    if (!result.ok || !result.description) {
+      setAiStatus({
+        type: 'error',
+        message:
+          result.error ||
+          'Não foi possível gerar a descrição agora. Você pode escrever manualmente.',
+      });
+      return;
+    }
+
+    setForm((prev) => ({ ...prev, description: result.description! }));
+    setAiStatus({
+      type: 'success',
+      message:
+        'Sugestão gerada! Revise ou edite o texto abaixo antes de salvar o prato.',
+    });
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setImageUrl(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
     setFormError(null);
 
-    if (!name.trim()) {
-      setFormError('Informe o nome do prato.');
-      return;
+    try {
+      const dataUrl = await resizeImageFileToDataUrl(file);
+      setForm((prev) => ({ ...prev, imageUrl: dataUrl }));
+    } catch (err) {
+      setFormError(
+        err instanceof Error ? err.message : 'Não foi possível carregar a imagem.'
+      );
     }
-
-    const parsedPrice = Number(priceInput.replace(',', '.'));
-    if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
-      setFormError('Informe um preço válido maior que zero.');
-      return;
-    }
-
-    const payload = {
-      name: name.trim(),
-      category,
-      price: parsedPrice,
-      ingredients: ingredients.trim(),
-      description: description.trim(),
-      imageUrl: imageUrl.trim(),
-      available,
-      isDemo: false,
-    };
-
-    if (editingDish) {
-      onUpdateDish({ ...editingDish, ...payload });
-    } else {
-      onAddDish(payload);
-    }
-
-    setIsFormOpen(false);
-  };
-
-  const handleAiPlaceholderClick = () => {
-    setAiNotice(
-      'O assistente de IA para gerar descrições comerciais será ativado na próxima etapa (AI Builder). Por enquanto, você pode escrever ou editar a descrição manualmente.'
-    );
   };
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-[#263238] tracking-tight">
-            Gerenciamento do Cardápio
-          </h2>
-          <p className="mt-1 text-sm text-[#263238]/75">
-            Adicione pratos, ajuste preços ou pause itens com um toque quando acabar na cozinha.
+          <h2 className="font-display font-bold text-2xl text-[#382B25]">Cardápio</h2>
+          <p className="text-sm text-[#6E5D55]">
+            Cadastre pratos, ajuste preços e pause itens esgotados em um toque.
           </p>
         </div>
 
         <button
           type="button"
-          onClick={openNewForm}
-          className="min-h-[44px] px-4 py-2.5 rounded-xl bg-[#287A55] text-white text-sm font-semibold hover:bg-[#1E6143] transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap shrink-0"
+          onClick={openNewModal}
+          className="min-h-[44px] px-4 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors whitespace-nowrap shrink-0"
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
-          <span>Adicionar prato</span>
+          <span>Adicionar Prato</span>
         </button>
       </div>
 
-      {/* Filtros e Busca */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => setSelectedCategory('Todas')}
-            className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-              selectedCategory === 'Todas'
-                ? 'bg-[#287A55] text-white'
-                : 'bg-white border border-[#DCE6E0] text-[#263238]/80 hover:bg-[#DDEFE3]/50'
-            }`}
-          >
-            Todas ({dishes.length})
-          </button>
-          {DISH_CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setSelectedCategory(cat)}
-              className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                selectedCategory === cat
-                  ? 'bg-[#287A55] text-white'
-                  : 'bg-white border border-[#DCE6E0] text-[#263238]/80 hover:bg-[#DDEFE3]/50'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+      {/* Busca e Filtro */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div
+          className="flex items-center gap-1.5 overflow-x-auto pb-1"
+          role="tablist"
+          aria-label="Filtrar cardápio por categoria"
+        >
+          {(['Todas', ...CATEGORIES] as const).map((cat) => {
+            const isActive = selectedCategory === cat;
+            return (
+              <button
+                key={cat}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setSelectedCategory(cat)}
+                className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                  isActive
+                    ? 'bg-[#382B25] text-[#FFF8EF]'
+                    : 'bg-[#FFFFFF] border border-[#EAE0D5] text-[#6E5D55] hover:text-[#382B25]'
+                }`}
+              >
+                {cat}
+              </button>
+            );
+          })}
         </div>
 
-        <div className="relative w-full lg:w-72 shrink-0">
+        <div className="relative w-full md:w-64 shrink-0">
           <Search
-            className="w-4 h-4 text-[#263238]/45 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="w-4 h-4 text-[#6E5D55] absolute left-3.5 top-1/2 -translate-y-1/2"
             aria-hidden="true"
           />
           <input
             type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar produto..."
-            aria-label="Buscar produto no cardápio administrativo"
-            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-white border border-[#DCE6E0] text-sm text-[#263238] focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar prato..."
+            aria-label="Buscar prato no cardápio"
+            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#DDD2C6] text-sm text-[#382B25] placeholder:text-[#8E7D74] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
           />
         </div>
       </div>
 
       {/* Lista de Produtos */}
-      {filteredDishes.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#DCE6E0] p-10 text-center">
-          <p className="text-base font-bold text-[#263238]">
-            Nenhum prato cadastrado nesta categoria.
+      {filteredProducts.length === 0 ? (
+        <div className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-8 text-center">
+          <p className="font-display font-bold text-base text-[#382B25]">
+            Nenhum prato encontrado
           </p>
-          <button
-            type="button"
-            onClick={openNewForm}
-            className="mt-4 min-h-[44px] px-4 py-2 rounded-xl bg-[#287A55] text-white text-sm font-semibold hover:bg-[#1E6143]"
-          >
-            Cadastrar primeiro prato
-          </button>
+          <p className="text-sm text-[#6E5D55] mt-1">
+            Cadastre um novo item ou altere o filtro de categoria.
+          </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredDishes.map((dish) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredProducts.map((product) => (
             <article
-              key={dish.id}
-              className={`bg-white rounded-2xl border p-4 flex gap-4 items-start transition-opacity ${
-                dish.available
-                  ? 'border-[#DCE6E0]'
-                  : 'border-[#DCE6E0] bg-[#F6F9F7]/70 opacity-85'
+              key={product.id}
+              className={`group bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] overflow-hidden flex flex-col justify-between transition-opacity ${
+                product.available ? '' : 'opacity-80'
               }`}
             >
-              <div className="w-24 h-24 sm:w-28 sm:h-24 rounded-xl overflow-hidden bg-[#F6F9F7] shrink-0">
-                <DishImage
-                  src={dish.imageUrl}
-                  alt={dish.name}
-                  className="w-full h-full"
-                />
+              <div>
+                <DishImage src={product.imageUrl} alt={product.name} />
+                <div className="p-4 space-y-2">
+                  <div className="flex items-center justify-between gap-2 text-xs text-[#6E5D55]">
+                    <span>{product.category}</span>
+                    <span
+                      className={`font-semibold ${
+                        product.available ? 'text-[#027A48]' : 'text-[#B42318]'
+                      }`}
+                    >
+                      {product.available ? 'Disponível' : 'Indisponível'}
+                    </span>
+                  </div>
+
+                  <h3 className="font-display font-bold text-base text-[#382B25] leading-snug">
+                    {product.name}
+                  </h3>
+
+                  <p className="text-xs sm:text-sm text-[#6E5D55] line-clamp-2">
+                    {product.description || product.ingredients || 'Sem descrição informada.'}
+                  </p>
+                </div>
               </div>
 
-              <div className="flex-1 min-w-0 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-[#263238]/60">
-                      {dish.category}
-                    </p>
-                    <h3 className="text-base font-bold text-[#263238] leading-snug truncate">
-                      {dish.name}
-                    </h3>
-                  </div>
-                  <span className="font-mono text-sm font-extrabold text-[#287A55] tabular-nums shrink-0">
-                    {formatCurrency(dish.price)}
+              <div className="px-4 pb-4 pt-3 border-t border-[#F2EAE0] space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-display font-extrabold text-lg text-[#382B25] tabular-nums">
+                    {formatCurrency(product.price)}
                   </span>
-                </div>
 
-                <p className="text-xs text-[#263238]/70 line-clamp-2">
-                  {dish.description || dish.ingredients || 'Sem descrição informada.'}
-                </p>
-
-                <div className="pt-1 flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => onToggleAvailability(dish.id)}
-                    className={`min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold border inline-flex items-center gap-1.5 transition-colors whitespace-nowrap ${
-                      dish.available
-                        ? 'bg-[#DDEFE3] border-[#287A55]/25 text-[#1E6143] hover:bg-[#CCE6D5]'
-                        : 'bg-[#F4C95D]/30 border-[#F4C95D] text-[#263238] hover:bg-[#F4C95D]/45'
+                    role="switch"
+                    aria-checked={product.available}
+                    onClick={() => onToggleAvailability(product.id)}
+                    className={`min-h-[40px] px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap ${
+                      product.available
+                        ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5] hover:bg-[#D1FADF]'
+                        : 'bg-[#F5F1ED] text-[#6E5D55] border-[#DDD2C6] hover:bg-[#EAE0D5]'
                     }`}
                   >
-                    {dish.available ? (
-                      <>
-                        <Eye className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>Disponível</span>
-                      </>
-                    ) : (
-                      <>
-                        <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>Indisponível</span>
-                      </>
-                    )}
+                    {product.available ? 'Pausar item' : 'Ativar item'}
                   </button>
+                </div>
 
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => openEditForm(dish)}
-                    className="min-h-[38px] px-3 py-1.5 rounded-lg border border-[#DCE6E0] bg-white text-xs font-semibold text-[#263238] hover:bg-[#F6F9F7] inline-flex items-center gap-1.5"
+                    onClick={() => openEditModal(product)}
+                    className="min-h-[44px] px-3 py-2 rounded-xl border border-[#DDD2C6] text-xs sm:text-sm font-semibold text-[#382B25] hover:bg-[#FFF8EF] flex items-center justify-center gap-1.5"
                   >
-                    <Edit3 className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Edit3 className="w-4 h-4 text-[#F47B35]" aria-hidden="true" />
                     <span>Editar</span>
                   </button>
-
                   <button
                     type="button"
-                    onClick={() => setDeleteTarget(dish)}
-                    aria-label={`Excluir ${dish.name}`}
-                    className="min-h-[38px] px-2.5 py-1.5 rounded-lg border border-[#FECACA] bg-[#FEF2F2] text-xs font-semibold text-[#991B1B] hover:bg-[#FEE2E2] inline-flex items-center gap-1"
+                    onClick={() => setProductToDelete(product)}
+                    className="min-h-[44px] px-3 py-2 rounded-xl border border-[#FECDCA] text-xs sm:text-sm font-semibold text-[#B42318] hover:bg-[#FDECE9] flex items-center justify-center gap-1.5"
                   >
-                    <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Trash2 className="w-4 h-4" aria-hidden="true" />
                     <span>Excluir</span>
                   </button>
                 </div>
@@ -312,43 +361,49 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
         </div>
       )}
 
-      {/* Modal de Adicionar / Editar Prato */}
-      {isFormOpen && (
+      {/* Modal Adicionar / Editar Prato */}
+      {modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#263238]/55 backdrop-blur-xs p-0 sm:p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#382B25]/50 backdrop-blur-xs p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="dish-form-title"
+          aria-labelledby="product-form-title"
         >
-          <div className="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl border border-[#DCE6E0] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#E6EFEA] flex items-center justify-between">
-              <h3 id="dish-form-title" className="text-lg font-extrabold text-[#263238]">
-                {editingDish ? 'Editar prato' : 'Adicionar novo prato'}
+          <form
+            onSubmit={handleSubmit}
+            className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-[#FFFFFF] rounded-t-3xl sm:rounded-2xl border border-[#EAE0D5] p-5 sm:p-6 shadow-xl space-y-4"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <h3
+                id="product-form-title"
+                className="font-display font-bold text-xl text-[#382B25]"
+              >
+                {form.id ? 'Editar Prato' : 'Novo Prato'}
               </h3>
               <button
                 type="button"
-                onClick={() => setIsFormOpen(false)}
-                aria-label="Fechar formulário"
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#263238]/65 hover:bg-[#F6F9F7]"
+                onClick={() => setModalOpen(false)}
+                aria-label="Fechar formulário de prato"
+                className="min-w-[44px] min-h-[44px] -mr-2 rounded-xl flex items-center justify-center text-[#6E5D55] hover:bg-[#F7EFE5]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 space-y-4">
-              {formError && (
-                <div
-                  role="alert"
-                  className="rounded-xl bg-[#FEF2F2] border border-[#FECACA] px-3.5 py-2.5 text-xs font-semibold text-[#991B1B]"
-                >
-                  {formError}
-                </div>
-              )}
+            {formError && (
+              <div
+                role="alert"
+                className="px-4 py-3 rounded-xl bg-[#FDECE9] border border-[#FECDCA] text-sm font-medium text-[#B42318]"
+              >
+                {formError}
+              </div>
+            )}
 
+            <div className="space-y-3.5">
               <div>
                 <label
                   htmlFor="dish-name"
-                  className="block text-sm font-semibold text-[#263238] mb-1.5"
+                  className="block text-xs font-semibold text-[#382B25] mb-1.5"
                 >
                   Nome do prato *
                 </label>
@@ -356,28 +411,30 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   id="dish-name"
                   type="text"
                   required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Ex.: Marmita Parmegiana de Frango"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="Ex.: Marmita de Frango Grelhado"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label
                     htmlFor="dish-category"
-                    className="block text-sm font-semibold text-[#263238] mb-1.5"
+                    className="block text-xs font-semibold text-[#382B25] mb-1.5"
                   >
                     Categoria *
                   </label>
                   <select
                     id="dish-category"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value as DishCategory)}
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+                    value={form.category}
+                    onChange={(e) =>
+                      setForm({ ...form, category: e.target.value as Category })
+                    }
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                   >
-                    {DISH_CATEGORIES.map((cat) => (
+                    {CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>
                         {cat}
                       </option>
@@ -388,7 +445,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 <div>
                   <label
                     htmlFor="dish-price"
-                    className="block text-sm font-semibold text-[#263238] mb-1.5"
+                    className="block text-xs font-semibold text-[#382B25] mb-1.5"
                   >
                     Preço (R$) *
                   </label>
@@ -397,10 +454,10 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     type="text"
                     inputMode="decimal"
                     required
-                    value={priceInput}
-                    onChange={(e) => setPriceInput(e.target.value)}
-                    placeholder="25,90"
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+                    value={form.priceText}
+                    onChange={(e) => setForm({ ...form, priceText: e.target.value })}
+                    placeholder="24,90"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] tabular-nums focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                   />
                 </div>
               </div>
@@ -408,17 +465,17 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
               <div>
                 <label
                   htmlFor="dish-ingredients"
-                  className="block text-sm font-semibold text-[#263238] mb-1.5"
+                  className="block text-xs font-semibold text-[#382B25] mb-1.5"
                 >
                   Ingredientes principais
                 </label>
                 <input
                   id="dish-ingredients"
                   type="text"
-                  value={ingredients}
-                  onChange={(e) => setIngredients(e.target.value)}
-                  placeholder="Ex.: Filé de frango empanado, molho de tomate, queijo, arroz e purê"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] text-sm focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+                  value={form.ingredients}
+                  onChange={(e) => setForm({ ...form, ingredients: e.target.value })}
+                  placeholder="Ex.: Arroz, feijão, frango grelhado e salada"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
               </div>
 
@@ -426,116 +483,151 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <label
                     htmlFor="dish-description"
-                    className="block text-sm font-semibold text-[#263238]"
+                    className="block text-xs font-semibold text-[#382B25]"
                   >
-                    Descrição comercial
+                    Descrição comercial (editável)
                   </label>
                   <button
                     type="button"
-                    onClick={handleAiPlaceholderClick}
-                    className="px-2.5 py-1 rounded-lg bg-[#DDEFE3] text-[#1E6143] text-xs font-semibold hover:bg-[#CCE6D5] transition-colors inline-flex items-center gap-1.5 whitespace-nowrap"
+                    disabled={aiLoading}
+                    onClick={handleGenerateAiDescription}
+                    className="min-h-[34px] px-2.5 py-1 rounded-lg bg-[#FFF3E6] hover:bg-[#FFE6CC] disabled:opacity-60 border border-[#F47B35]/35 text-xs font-semibold text-[#B54708] inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
                   >
-                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>Sugerir com IA (Etapa 3)</span>
+                    {aiLoading ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                        <span>Gerando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 text-[#D94B3D]" aria-hidden="true" />
+                        <span>Gerar descrição com IA</span>
+                      </>
+                    )}
                   </button>
                 </div>
 
-                {aiNotice && (
-                  <p className="mb-2 text-xs text-[#1E6143] bg-[#DDEFE3]/60 rounded-lg px-3 py-2">
-                    {aiNotice}
+                {aiStatus && (
+                  <p
+                    role={aiStatus.type === 'error' ? 'alert' : 'status'}
+                    className={`mb-2 px-3 py-2 rounded-xl border text-xs ${
+                      aiStatus.type === 'success'
+                        ? 'bg-[#ECFDF3] border-[#A6F4C5] text-[#027A48]'
+                        : 'bg-[#FFF3E6] border-[#F47B35]/35 text-[#B54708]'
+                    }`}
+                  >
+                    {aiStatus.message}
                   </p>
                 )}
 
                 <textarea
                   id="dish-description"
                   rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Descreva o prato de forma apetitosa para seus clientes..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#DCE6E0] text-sm focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Descreva o prato de forma apetitosa ou use o assistente de IA acima para sugerir um texto..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-[#263238] mb-1.5">
-                  Fotografia do prato
-                </label>
-                <div className="flex items-center gap-4">
-                  <div className="w-20 h-16 rounded-xl overflow-hidden bg-[#F6F9F7] border border-[#DCE6E0] shrink-0">
-                    <DishImage
-                      src={imageUrl}
-                      alt={name || 'Prévia'}
-                      className="w-full h-full"
-                    />
-                  </div>
-                  <label className="min-h-[44px] px-4 py-2 rounded-xl border border-[#DCE6E0] bg-white text-xs font-semibold text-[#263238] hover:bg-[#F6F9F7] cursor-pointer inline-flex items-center gap-2">
-                    <ImagePlus className="w-4 h-4 text-[#287A55]" aria-hidden="true" />
-                    <span>Escolher foto do celular</span>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <label
+                    htmlFor="dish-image"
+                    className="block text-xs font-semibold text-[#382B25]"
+                  >
+                    Fotografia do prato
+                  </label>
+                  <label className="min-h-[34px] px-2.5 py-1 rounded-lg border border-[#DDD2C6] hover:bg-[#FFF8EF] text-xs font-semibold text-[#382B25] inline-flex items-center gap-1.5 cursor-pointer">
+                    <Upload className="w-3.5 h-3.5 text-[#F47B35]" aria-hidden="true" />
+                    <span>Enviar foto</span>
                     <input
                       type="file"
                       accept="image/*"
-                      onChange={handleImageUpload}
+                      onChange={handleFileUpload}
                       className="sr-only"
                     />
                   </label>
                 </div>
+
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {PRESET_DISH_IMAGES.map((preset) => (
+                    <button
+                      key={preset.url}
+                      type="button"
+                      onClick={() => setForm({ ...form, imageUrl: preset.url })}
+                      className={`shrink-0 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                        form.imageUrl === preset.url
+                          ? 'border-[#F47B35] bg-[#FFF3E6] text-[#382B25]'
+                          : 'border-[#DDD2C6] text-[#6E5D55] hover:bg-[#FFF8EF]'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                <input
+                  id="dish-image"
+                  type="text"
+                  value={form.imageUrl}
+                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                  placeholder="Caminho, URL ou envie uma foto pelo botão acima (opcional)"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-xs text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+                />
+
+                {form.imageUrl && (
+                  <div className="rounded-xl overflow-hidden border border-[#EAE0D5] max-w-[200px]">
+                    <DishImage src={form.imageUrl} alt={form.name || 'Prévia do prato'} />
+                  </div>
+                )}
               </div>
 
-              <div className="pt-1">
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={available}
-                  onClick={() => setAvailable((prev) => !prev)}
-                  className="w-full min-h-[48px] px-4 py-2.5 rounded-xl border border-[#DCE6E0] bg-[#F6F9F7] flex items-center justify-between text-sm font-semibold text-[#263238]"
-                >
-                  <span>Exibir imediatamente no cardápio público</span>
-                  <span
-                    className={`px-2.5 py-1 rounded-md text-xs font-bold inline-flex items-center gap-1 ${
-                      available
-                        ? 'bg-[#287A55] text-white'
-                        : 'bg-[#DCE6E0] text-[#263238]/75'
-                    }`}
-                  >
-                    {available && <Check className="w-3.5 h-3.5" aria-hidden="true" />}
-                    <span>{available ? 'Disponível' : 'Pausado'}</span>
-                  </span>
-                </button>
-              </div>
+              <label className="flex items-center gap-3 min-h-[44px] px-3.5 py-2 rounded-xl bg-[#FFF8EF] border border-[#EAE0D5] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.available}
+                  onChange={(e) => setForm({ ...form, available: e.target.checked })}
+                  className="w-5 h-5 accent-[#F47B35] rounded"
+                />
+                <span className="text-sm font-semibold text-[#382B25]">
+                  Prato disponível para pedidos agora
+                </span>
+              </label>
+            </div>
 
-              <div className="pt-3 border-t border-[#E6EFEA] flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsFormOpen(false)}
-                  className="min-h-[44px] px-4 py-2 rounded-xl border border-[#DCE6E0] text-sm font-semibold text-[#263238]"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="min-h-[44px] px-5 py-2 rounded-xl bg-[#287A55] text-white text-sm font-semibold hover:bg-[#1E6143]"
-                >
-                  {editingDish ? 'Salvar alterações' : 'Adicionar prato'}
-                </button>
-              </div>
-            </form>
-          </div>
+            <div className="pt-2 flex flex-col-reverse sm:flex-row justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="min-h-[44px] px-4 py-2.5 rounded-xl border border-[#DDD2C6] text-sm font-semibold text-[#382B25] hover:bg-[#F7EFE5]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold flex items-center justify-center gap-2"
+              >
+                <Check className="w-4 h-4" aria-hidden="true" />
+                <span>{form.id ? 'Salvar Alterações' : 'Cadastrar Prato'}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
-      {/* Modal de Confirmação de Exclusão */}
-      <ConfirmModal
-        open={Boolean(deleteTarget)}
-        title={`Excluir "${deleteTarget?.name || ''}"?`}
-        description="O prato será removido do cardápio. Pedidos já registrados anteriormente não serão afetados."
+      {/* Confirmação de Exclusão */}
+      <ConfirmDialog
+        open={Boolean(productToDelete)}
+        title="Excluir prato do cardápio?"
+        description={`Tem certeza que deseja remover "${productToDelete?.name ?? ''}"? Pedidos já feitos com este item continuam registrados normalmente.`}
         confirmLabel="Sim, excluir prato"
-        cancelLabel="Manter prato"
         destructive
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={() => setProductToDelete(null)}
         onConfirm={() => {
-          if (deleteTarget) {
-            onDeleteDish(deleteTarget.id);
-            setDeleteTarget(null);
+          if (productToDelete) {
+            onDeleteProduct(productToDelete.id);
+            setProductToDelete(null);
           }
         }}
       />

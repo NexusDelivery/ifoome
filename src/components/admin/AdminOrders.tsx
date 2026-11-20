@@ -1,262 +1,294 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  Bike,
+  Ban,
+  Eye,
   MapPin,
   Phone,
   Search,
-  Store,
+  ShoppingBag,
   X,
-  XCircle,
 } from 'lucide-react';
-import { Order, OrderStatus } from '../../types/ifoome';
+import { Order, OrderStatus } from '../../types';
 import {
   formatCurrency,
-  formatTime,
-  getNextActionButtonText,
+  formatOrderTime,
+  getNextActionLabel,
   getNextOrderStatus,
-} from '../../utils/formatters';
-import { ConfirmModal } from '../ConfirmModal';
-import { StatusIndicator } from '../StatusBadge';
+} from '../../utils/format';
+import { StatusBadge } from '../StatusBadge';
+import { ConfirmDialog } from '../ConfirmDialog';
+
+export type OrderFilter = 'Ativos' | 'Todos' | OrderStatus;
 
 interface AdminOrdersProps {
   orders: Order[];
-  selectedOrder: Order | null;
-  onSelectOrder: (order: Order | null) => void;
+  filter: OrderFilter;
+  onChangeFilter: (filter: OrderFilter) => void;
   onUpdateOrderStatus: (orderId: string, nextStatus: OrderStatus) => void;
 }
 
-type OrderFilter = 'ativos' | 'todos' | OrderStatus;
+const FILTERS: OrderFilter[] = [
+  'Ativos',
+  'Recebido',
+  'Em preparo',
+  'Saiu para entrega',
+  'Concluído',
+  'Cancelado',
+  'Todos',
+];
 
 export const AdminOrders: React.FC<AdminOrdersProps> = ({
   orders,
-  selectedOrder,
-  onSelectOrder,
+  filter,
+  onChangeFilter,
   onUpdateOrderStatus,
 }) => {
-  const [filter, setFilter] = useState<OrderFilter>('ativos');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [cancelTarget, setCancelTarget] = useState<Order | null>(null);
+  const [search, setSearch] = useState('');
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
 
-  const filteredOrders = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    return orders.filter((order) => {
-      if (filter === 'ativos') {
-        if (
-          order.status !== 'Recebido' &&
-          order.status !== 'Em preparo' &&
-          order.status !== 'Saiu para entrega'
-        ) {
-          return false;
-        }
-      } else if (filter !== 'todos' && order.status !== filter) {
-        return false;
-      }
+  const selectedOrder = selectedOrderId
+    ? orders.find((o) => o.id === selectedOrderId) ?? null
+    : null;
 
-      if (!query) return true;
-      return (
-        order.code.toLowerCase().includes(query) ||
-        order.customerName.toLowerCase().includes(query) ||
-        order.customerPhone.toLowerCase().includes(query)
-      );
-    });
-  }, [orders, filter, searchQuery]);
+  const filteredOrders = orders.filter((order) => {
+    const matchesStatus =
+      filter === 'Todos'
+        ? true
+        : filter === 'Ativos'
+          ? order.status === 'Recebido' ||
+            order.status === 'Em preparo' ||
+            order.status === 'Saiu para entrega'
+          : order.status === filter;
 
-  const filterOptions: { id: OrderFilter; label: string }[] = [
-    { id: 'ativos', label: 'Ativos na cozinha' },
-    { id: 'todos', label: 'Todos' },
-    { id: 'Recebido', label: 'Recebido' },
-    { id: 'Em preparo', label: 'Em preparo' },
-    { id: 'Saiu para entrega', label: 'Saiu / Pronto' },
-    { id: 'Concluído', label: 'Concluído' },
-    { id: 'Cancelado', label: 'Cancelado' },
-  ];
+    const query = search.trim().toLowerCase();
+    const matchesSearch =
+      !query ||
+      order.code.toLowerCase().includes(query) ||
+      order.customerName.toLowerCase().includes(query) ||
+      order.customerPhone.toLowerCase().includes(query);
+
+    return matchesStatus && matchesSearch;
+  });
+
+  const getCountForFilter = (f: OrderFilter) => {
+    if (f === 'Todos') return orders.length;
+    if (f === 'Ativos') {
+      return orders.filter(
+        (o) =>
+          o.status === 'Recebido' ||
+          o.status === 'Em preparo' ||
+          o.status === 'Saiu para entrega'
+      ).length;
+    }
+    return orders.filter((o) => o.status === f).length;
+  };
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-2xl sm:text-3xl font-extrabold text-[#263238] tracking-tight">
-          Gerenciamento de Pedidos
-        </h2>
-        <p className="mt-1 text-sm text-[#263238]/75">
-          Acompanhe os pedidos em fila, veja observações e atualize o status com um toque.
-        </p>
-      </div>
-
-      {/* Filtros e Busca */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {filterOptions.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setFilter(opt.id)}
-              className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                filter === opt.id
-                  ? 'bg-[#287A55] text-white'
-                  : 'bg-white border border-[#DCE6E0] text-[#263238]/80 hover:bg-[#DDEFE3]/50'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 className="font-display font-bold text-2xl text-[#382B25]">Pedidos</h2>
+          <p className="text-sm text-[#6E5D55]">
+            Acompanhe a cozinha e avance os pedidos sem permitir retrocessos acidentais.
+          </p>
         </div>
 
-        <div className="relative w-full lg:w-72 shrink-0">
+        <div className="relative w-full sm:w-72">
           <Search
-            className="w-4 h-4 text-[#263238]/45 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="w-4 h-4 text-[#6E5D55] absolute left-3.5 top-1/2 -translate-y-1/2"
             aria-hidden="true"
           />
           <input
             type="search"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por código ou cliente..."
-            aria-label="Buscar pedido"
-            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-white border border-[#DCE6E0] text-sm text-[#263238] focus:outline-none focus:ring-2 focus:ring-[#287A55]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar código ou cliente..."
+            aria-label="Buscar pedido por código ou cliente"
+            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#DDD2C6] text-sm text-[#382B25] placeholder:text-[#8E7D74] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
           />
         </div>
       </div>
 
+      {/* Filtros de Status */}
+      <div
+        className="flex items-center gap-1.5 overflow-x-auto pb-1"
+        role="tablist"
+        aria-label="Filtrar pedidos por status"
+      >
+        {FILTERS.map((f) => {
+          const isActive = filter === f;
+          const count = getCountForFilter(f);
+          return (
+            <button
+              key={f}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChangeFilter(f)}
+              className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0 transition-colors flex items-center gap-1.5 ${
+                isActive
+                  ? 'bg-[#382B25] text-[#FFF8EF]'
+                  : 'bg-[#FFFFFF] border border-[#EAE0D5] text-[#6E5D55] hover:text-[#382B25]'
+              }`}
+            >
+              <span>{f}</span>
+              <span
+                className={`tabular-nums text-xs ${
+                  isActive ? 'text-[#F47B35]' : 'text-[#8E7D74]'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Lista de Pedidos */}
       {filteredOrders.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[#DCE6E0] p-10 text-center">
-          <p className="text-base font-bold text-[#263238]">
-            Nenhum pedido encontrado neste filtro.
+        <div className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-8 text-center">
+          <p className="font-display font-bold text-base text-[#382B25]">
+            Nenhum pedido encontrado neste filtro
           </p>
-          <p className="mt-1 text-sm text-[#263238]/65">
-            Tente mudar o filtro para "Todos" para consultar o histórico completo do dia.
+          <p className="text-sm text-[#6E5D55] mt-1">
+            Tente selecionar "Todos" ou limpar a busca.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filteredOrders.map((order) => {
             const nextStatus = getNextOrderStatus(order.status);
-            const nextActionText = getNextActionButtonText(
-              order.status,
-              order.deliveryMode
-            );
+            const nextLabel = getNextActionLabel(order.status, order.modality);
             const canCancel =
               order.status !== 'Concluído' && order.status !== 'Cancelado';
 
             return (
               <article
                 key={order.id}
-                className="bg-white rounded-2xl border border-[#DCE6E0] p-5 flex flex-col justify-between gap-4"
+                className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-4 sm:p-5 flex flex-col justify-between gap-4"
               >
                 <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2 text-xs text-[#263238]/65">
-                        <span className="font-mono text-base font-extrabold text-[#263238] tabular-nums">
-                          {order.code}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono tabular-nums">
-                          {formatTime(order.createdAt)}
-                        </span>
-                      </div>
-                      <h3 className="mt-1 text-base font-bold text-[#263238]">
-                        {order.customerName}
-                      </h3>
+                  {/* Linha superior: Código, Horário, Modalidade e Status */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-[#6E5D55] tabular-nums">
+                      <span className="font-display font-extrabold text-base text-[#382B25]">
+                        {order.code}
+                      </span>
+                      <span aria-hidden="true">·</span>
+                      <span>{formatOrderTime(order.createdAt)}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="font-semibold text-[#382B25]">
+                        {order.modality === 'entrega' ? 'Entrega' : 'Retirada no local'}
+                      </span>
                     </div>
-
-                    <StatusIndicator
-                      status={order.status}
-                      deliveryMode={order.deliveryMode}
-                    />
+                    <StatusBadge status={order.status} modality={order.modality} />
                   </div>
 
-                  {/* Modalidade / Endereço */}
-                  <div className="rounded-xl bg-[#F6F9F7] px-3.5 py-2.5 text-xs text-[#263238]/85 flex items-start gap-2">
-                    {order.deliveryMode === 'entrega' ? (
-                      <>
-                        <Bike className="w-4 h-4 text-[#287A55] shrink-0 mt-0.5" aria-hidden="true" />
-                        <span>
-                          <strong>Entrega:</strong>{' '}
-                          {order.address
-                            ? `${order.address.street}, ${order.address.number} · ${order.address.neighborhood}${
-                                order.address.complement
-                                  ? ` (${order.address.complement})`
-                                  : ''
-                              }`
-                            : 'Endereço não informado'}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <Store className="w-4 h-4 text-[#287A55] shrink-0 mt-0.5" aria-hidden="true" />
-                        <span>
-                          <strong>Retirada no balcão</strong>
-                        </span>
-                      </>
-                    )}
+                  {/* Dados do Cliente */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span className="font-bold text-[#382B25]">{order.customerName}</span>
+                    <span className="inline-flex items-center gap-1.5 text-[#6E5D55] tabular-nums">
+                      <Phone className="w-3.5 h-3.5 text-[#F47B35]" aria-hidden="true" />
+                      {order.customerPhone}
+                    </span>
                   </div>
 
-                  {/* Itens solicitados */}
-                  <ul className="space-y-1.5 text-sm">
+                  {/* Itens */}
+                  <ul className="space-y-1.5 text-sm border-t border-b border-[#F2EAE0] py-3">
                     {order.items.map((item, idx) => (
-                      <li key={idx} className="text-[#263238]">
-                        <span className="font-mono font-bold tabular-nums mr-1.5">
-                          {item.quantity}x
-                        </span>
-                        <span>{item.name}</span>
-                        {item.observation && (
-                          <span className="block text-xs text-[#9A6E04] font-medium ml-6">
-                            Obs.: {item.observation}
+                      <li key={`${order.id}-${idx}`} className="flex justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="font-semibold text-[#382B25]">
+                            {item.quantity}x {item.name}
                           </span>
-                        )}
+                          {item.observation && (
+                            <p className="text-xs text-[#B42318] mt-0.5">
+                              Obs: {item.observation}
+                            </p>
+                          )}
+                        </div>
+                        <span className="text-[#6E5D55] tabular-nums shrink-0">
+                          {formatCurrency(item.unitPrice * item.quantity)}
+                        </span>
                       </li>
                     ))}
                   </ul>
 
-                  {order.generalObservation && (
-                    <p className="text-xs text-[#263238]/80 bg-[#F4C95D]/20 rounded-lg px-3 py-2">
-                      <strong>Observação do cliente:</strong> {order.generalObservation}
-                    </p>
-                  )}
-                </div>
+                  {/* Endereço / Pagamento / Obs Geral */}
+                  <div className="space-y-1.5 text-xs sm:text-sm text-[#6E5D55]">
+                    {order.modality === 'entrega' && order.address ? (
+                      <p className="flex items-start gap-2">
+                        <MapPin
+                          className="w-4 h-4 text-[#F47B35] shrink-0 mt-0.5"
+                          aria-hidden="true"
+                        />
+                        <span>
+                          {order.address.street}, {order.address.number} —{' '}
+                          {order.address.neighborhood}
+                          {order.address.complement ? ` (${order.address.complement})` : ''}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="flex items-center gap-2">
+                        <ShoppingBag className="w-4 h-4 text-[#F47B35] shrink-0" aria-hidden="true" />
+                        <span>Cliente retirará no balcão</span>
+                      </p>
+                    )}
 
-                <div className="pt-3 border-t border-[#E6EFEA] space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-[#263238]/75">
-                      {order.paymentMethod}
-                      {order.changeFor
+                    <p>
+                      <strong className="text-[#382B25]">Pagamento:</strong> {order.paymentMethod}
+                      {order.paymentMethod === 'Dinheiro' && order.changeFor
                         ? ` (troco p/ ${formatCurrency(order.changeFor)})`
                         : ''}
-                    </span>
-                    <span className="font-mono text-lg font-extrabold text-[#263238] tabular-nums">
+                    </p>
+
+                    {order.generalObservation && (
+                      <p className="text-[#B54708] bg-[#FFF3E6] px-3 py-1.5 rounded-lg">
+                        <strong>Obs. do cliente:</strong> {order.generalObservation}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Rodapé de Ações */}
+                <div className="pt-3 border-t border-[#F2EAE0] flex flex-wrap items-center justify-between gap-2.5">
+                  <div>
+                    <span className="text-xs text-[#6E5D55] block">Total do pedido</span>
+                    <span className="font-display font-extrabold text-lg text-[#382B25] tabular-nums">
                       {formatCurrency(order.total)}
                     </span>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    {nextStatus && nextActionText && (
-                      <button
-                        type="button"
-                        onClick={() => onUpdateOrderStatus(order.id, nextStatus)}
-                        className="flex-1 min-h-[44px] px-4 py-2 rounded-xl bg-[#287A55] text-white text-sm font-semibold hover:bg-[#1E6143] transition-colors whitespace-nowrap"
-                      >
-                        {nextActionText}
-                      </button>
-                    )}
-
                     <button
                       type="button"
-                      onClick={() => onSelectOrder(order)}
-                      className="min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DCE6E0] bg-white text-xs font-semibold text-[#263238] hover:bg-[#F6F9F7] whitespace-nowrap"
+                      onClick={() => setSelectedOrderId(order.id)}
+                      className="min-h-[44px] px-3 py-2 rounded-xl border border-[#DDD2C6] text-xs sm:text-sm font-semibold text-[#382B25] hover:bg-[#FFF8EF] flex items-center gap-1.5 whitespace-nowrap"
                     >
-                      Detalhes
+                      <Eye className="w-4 h-4" aria-hidden="true" />
+                      <span>Detalhes</span>
                     </button>
 
                     {canCancel && (
                       <button
                         type="button"
-                        onClick={() => setCancelTarget(order)}
+                        onClick={() => setOrderToCancel(order)}
                         aria-label={`Cancelar pedido ${order.code}`}
-                        className="min-h-[44px] px-3 py-2 rounded-xl border border-[#FECACA] bg-[#FEF2F2] text-xs font-semibold text-[#991B1B] hover:bg-[#FEE2E2] transition-colors inline-flex items-center gap-1 whitespace-nowrap"
+                        className="min-h-[44px] px-3 py-2 rounded-xl border border-[#FECDCA] text-xs sm:text-sm font-semibold text-[#B42318] hover:bg-[#FDECE9] flex items-center gap-1.5 whitespace-nowrap"
                       >
-                        <XCircle className="w-4 h-4" aria-hidden="true" />
+                        <Ban className="w-4 h-4" aria-hidden="true" />
                         <span>Cancelar</span>
+                      </button>
+                    )}
+
+                    {nextStatus && nextLabel && (
+                      <button
+                        type="button"
+                        onClick={() => onUpdateOrderStatus(order.id, nextStatus)}
+                        className="min-h-[44px] px-4 py-2 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap"
+                      >
+                        {nextLabel}
                       </button>
                     )}
                   </div>
@@ -270,180 +302,169 @@ export const AdminOrders: React.FC<AdminOrdersProps> = ({
       {/* Modal de Detalhes do Pedido */}
       {selectedOrder && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#263238]/55 backdrop-blur-xs p-0 sm:p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#382B25]/50 backdrop-blur-xs p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="order-detail-title"
         >
-          <div className="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl border border-[#DCE6E0] shadow-2xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="px-5 py-4 border-b border-[#E6EFEA] flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h3 id="order-detail-title" className="text-lg font-extrabold text-[#263238]">
-                  Pedido <span className="font-mono tabular-nums">{selectedOrder.code}</span>
+          <div className="w-full sm:max-w-lg max-h-[90vh] overflow-y-auto bg-[#FFFFFF] rounded-t-3xl sm:rounded-2xl border border-[#EAE0D5] p-6 shadow-xl space-y-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs text-[#6E5D55] tabular-nums">
+                  Pedido registrado às {formatOrderTime(selectedOrder.createdAt)}
+                </p>
+                <h3
+                  id="order-detail-title"
+                  className="font-display font-bold text-xl text-[#382B25] mt-0.5"
+                >
+                  Pedido {selectedOrder.code} · {selectedOrder.customerName}
                 </h3>
-                <StatusIndicator
-                  status={selectedOrder.status}
-                  deliveryMode={selectedOrder.deliveryMode}
-                />
               </div>
               <button
                 type="button"
-                onClick={() => onSelectOrder(null)}
+                onClick={() => setSelectedOrderId(null)}
                 aria-label="Fechar detalhes do pedido"
-                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-[#263238]/65 hover:bg-[#F6F9F7]"
+                className="min-w-[44px] min-h-[44px] -mr-2 -mt-2 rounded-xl flex items-center justify-center text-[#6E5D55] hover:bg-[#F7EFE5]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-5 overflow-y-auto space-y-4 text-sm">
-              <div className="space-y-1">
-                <p className="font-bold text-[#263238] text-base">
-                  {selectedOrder.customerName}
-                </p>
-                <p className="inline-flex items-center gap-1.5 text-[#263238]/75 font-mono text-xs tabular-nums">
-                  <Phone className="w-3.5 h-3.5 text-[#287A55]" aria-hidden="true" />
-                  <span>{selectedOrder.customerPhone}</span>
-                  <span aria-hidden="true">·</span>
-                  <span>Pedido às {formatTime(selectedOrder.createdAt)}</span>
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-[#F6F9F7] border border-[#E6EFEA] p-3.5 space-y-1">
-                <p className="font-semibold text-[#263238] flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-[#287A55]" aria-hidden="true" />
-                  <span>
-                    {selectedOrder.deliveryMode === 'entrega'
-                      ? 'Entrega no endereço'
-                      : 'Retirada no balcão'}
-                  </span>
-                </p>
-                {selectedOrder.deliveryMode === 'entrega' && selectedOrder.address && (
-                  <p className="text-[#263238]/80 text-xs pl-5">
-                    {selectedOrder.address.street}, {selectedOrder.address.number} —{' '}
-                    {selectedOrder.address.neighborhood}
-                    {selectedOrder.address.complement
-                      ? ` (${selectedOrder.address.complement})`
-                      : ''}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <h4 className="font-bold text-[#263238] mb-2">Itens</h4>
-                <ul className="divide-y divide-[#E6EFEA]">
-                  {selectedOrder.items.map((item, idx) => (
-                    <li key={idx} className="py-2 flex justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-[#263238]">
-                          <span className="font-mono font-bold tabular-nums mr-1.5">
-                            {item.quantity}x
-                          </span>
-                          {item.name}
-                        </p>
-                        {item.observation && (
-                          <p className="text-xs text-[#9A6E04]">Obs.: {item.observation}</p>
-                        )}
-                      </div>
-                      <span className="font-mono font-semibold tabular-nums">
-                        {formatCurrency(item.unitPrice * item.quantity)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {selectedOrder.generalObservation && (
-                <div className="rounded-xl bg-[#F4C95D]/20 p-3 text-xs text-[#263238]">
-                  <strong>Observação geral:</strong> {selectedOrder.generalObservation}
-                </div>
-              )}
-
-              <div className="pt-3 border-t border-[#E6EFEA] space-y-1.5">
-                <div className="flex justify-between text-[#263238]/75">
-                  <span>Subtotal</span>
-                  <span className="font-mono tabular-nums">
-                    {formatCurrency(selectedOrder.subtotal)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-[#263238]/75">
-                  <span>Taxa de entrega</span>
-                  <span className="font-mono tabular-nums">
-                    {selectedOrder.deliveryFee > 0
-                      ? formatCurrency(selectedOrder.deliveryFee)
-                      : 'Grátis'}
-                  </span>
-                </div>
-                <div className="flex justify-between text-[#263238]/75">
-                  <span>Pagamento</span>
-                  <span>
-                    {selectedOrder.paymentMethod}
-                    {selectedOrder.changeFor
-                      ? ` (troco p/ ${formatCurrency(selectedOrder.changeFor)})`
-                      : ''}
-                  </span>
-                </div>
-                <div className="pt-2 border-t border-[#E6EFEA] flex justify-between text-base font-extrabold text-[#263238]">
-                  <span>Total</span>
-                  <span className="font-mono text-[#287A55] tabular-nums">
-                    {formatCurrency(selectedOrder.total)}
-                  </span>
-                </div>
-              </div>
+            <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#EAE0D5]">
+              <StatusBadge status={selectedOrder.status} modality={selectedOrder.modality} />
+              <span className="text-sm font-semibold text-[#382B25] tabular-nums">
+                {selectedOrder.customerPhone}
+              </span>
             </div>
 
-            {/* Controle manual direto de status */}
-            <div className="p-4 border-t border-[#E6EFEA] bg-[#F6F9F7] space-y-2">
-              <p className="text-xs font-semibold text-[#263238]/70">
-                Alterar status manualmente:
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    'Recebido',
-                    'Em preparo',
-                    'Saiu para entrega',
-                    'Concluído',
-                  ] as OrderStatus[]
-                ).map((st) => (
-                  <button
-                    key={st}
-                    type="button"
-                    onClick={() => {
-                      onUpdateOrderStatus(selectedOrder.id, st);
-                      onSelectOrder({ ...selectedOrder, status: st });
-                    }}
-                    className={`min-h-[38px] px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                      selectedOrder.status === st
-                        ? 'bg-[#287A55] text-white border-[#287A55]'
-                        : 'bg-white text-[#263238] border-[#DCE6E0] hover:bg-[#DDEFE3]/50'
-                    }`}
-                  >
-                    {st === 'Saiu para entrega' &&
-                    selectedOrder.deliveryMode === 'retirada'
-                      ? 'Pronto p/ retirada'
-                      : st}
-                  </button>
+            {selectedOrder.modality === 'entrega' && selectedOrder.address ? (
+              <div className="text-sm text-[#57473F] bg-[#FFF8EF] rounded-xl p-3.5 border border-[#EAE0D5]">
+                <strong className="text-[#382B25]">Endereço de entrega: </strong>
+                {selectedOrder.address.street}, {selectedOrder.address.number} —{' '}
+                {selectedOrder.address.neighborhood}
+                {selectedOrder.address.complement
+                  ? ` (${selectedOrder.address.complement})`
+                  : ''}
+              </div>
+            ) : (
+              <div className="text-sm text-[#57473F] bg-[#FFF8EF] rounded-xl p-3.5 border border-[#EAE0D5]">
+                <strong className="text-[#382B25]">Modalidade: </strong>
+                Retirada no estabelecimento
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-[#6E5D55]">Itens solicitados</p>
+              <ul className="divide-y divide-[#F2EAE0] border border-[#EAE0D5] rounded-xl px-4">
+                {selectedOrder.items.map((item, idx) => (
+                  <li key={idx} className="py-3 flex justify-between gap-3 text-sm">
+                    <div>
+                      <p className="font-semibold text-[#382B25]">
+                        {item.quantity}x {item.name}
+                      </p>
+                      {item.observation && (
+                        <p className="text-xs text-[#B42318] mt-0.5">Obs: {item.observation}</p>
+                      )}
+                    </div>
+                    <span className="font-semibold tabular-nums text-[#382B25]">
+                      {formatCurrency(item.unitPrice * item.quantity)}
+                    </span>
+                  </li>
                 ))}
+              </ul>
+            </div>
+
+            {selectedOrder.generalObservation && (
+              <p className="text-xs sm:text-sm text-[#B54708] bg-[#FFF3E6] px-3.5 py-2.5 rounded-xl">
+                <strong>Observação geral:</strong> {selectedOrder.generalObservation}
+              </p>
+            )}
+
+            <div className="text-sm space-y-1.5 bg-[#FFF8EF] rounded-xl p-4 border border-[#EAE0D5]">
+              <div className="flex justify-between text-[#6E5D55]">
+                <span>Pagamento</span>
+                <span className="font-semibold text-[#382B25]">
+                  {selectedOrder.paymentMethod}
+                  {selectedOrder.paymentMethod === 'Dinheiro' && selectedOrder.changeFor
+                    ? ` (troco p/ ${formatCurrency(selectedOrder.changeFor)})`
+                    : ''}
+                </span>
+              </div>
+              <div className="flex justify-between text-[#6E5D55]">
+                <span>Subtotal</span>
+                <span className="tabular-nums">{formatCurrency(selectedOrder.subtotal)}</span>
+              </div>
+              <div className="flex justify-between text-[#6E5D55]">
+                <span>Taxa de entrega</span>
+                <span className="tabular-nums">
+                  {selectedOrder.deliveryFee === 0
+                    ? 'Grátis'
+                    : formatCurrency(selectedOrder.deliveryFee)}
+                </span>
+              </div>
+              <div className="flex justify-between font-display font-bold text-base text-[#382B25] pt-2 border-t border-[#E5D6C5]">
+                <span>Total</span>
+                <span className="tabular-nums">{formatCurrency(selectedOrder.total)}</span>
               </div>
             </div>
+
+            {(() => {
+              const nextStatus = getNextOrderStatus(selectedOrder.status);
+              const nextLabel = getNextActionLabel(
+                selectedOrder.status,
+                selectedOrder.modality
+              );
+              const canCancel =
+                selectedOrder.status !== 'Concluído' &&
+                selectedOrder.status !== 'Cancelado';
+
+              if (!nextStatus && !canCancel) {
+                return (
+                  <p className="text-xs text-[#6E5D55] text-center pt-1">
+                    Pedido encerrado no status <strong>{selectedOrder.status}</strong>.
+                  </p>
+                );
+              }
+
+              return (
+                <div className="flex flex-col-reverse sm:flex-row gap-2.5 pt-1">
+                  {canCancel && (
+                    <button
+                      type="button"
+                      onClick={() => setOrderToCancel(selectedOrder)}
+                      className="min-h-[44px] px-4 py-2.5 rounded-xl border border-[#FECDCA] text-sm font-semibold text-[#B42318] hover:bg-[#FDECE9]"
+                    >
+                      Cancelar pedido
+                    </button>
+                  )}
+                  {nextStatus && nextLabel && (
+                    <button
+                      type="button"
+                      onClick={() => onUpdateOrderStatus(selectedOrder.id, nextStatus)}
+                      className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold transition-colors"
+                    >
+                      Avançar para: {nextLabel}
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
 
-      {/* Modal de Confirmação de Cancelamento */}
-      <ConfirmModal
-        open={Boolean(cancelTarget)}
-        title={`Cancelar pedido ${cancelTarget?.code || ''}?`}
-        description="Pedidos cancelados não entram no total vendido do dia e saem da fila ativa da cozinha."
+      {/* Confirmação de Cancelamento */}
+      <ConfirmDialog
+        open={Boolean(orderToCancel)}
+        title={`Cancelar pedido ${orderToCancel?.code ?? ''}?`}
+        description="Pedidos cancelados saem da fila da cozinha e não são somados no total vendido do dia."
         confirmLabel="Sim, cancelar pedido"
-        cancelLabel="Manter pedido"
         destructive
-        onCancel={() => setCancelTarget(null)}
+        onCancel={() => setOrderToCancel(null)}
         onConfirm={() => {
-          if (cancelTarget) {
-            onUpdateOrderStatus(cancelTarget.id, 'Cancelado');
-            setCancelTarget(null);
+          if (orderToCancel) {
+            onUpdateOrderStatus(orderToCancel.id, 'Cancelado');
+            setOrderToCancel(null);
           }
         }}
       />

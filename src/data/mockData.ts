@@ -1,279 +1,261 @@
-import { Category, MenuItem, Order, StoreConfig } from '../types';
+import heroBannerImg from '../assets/images/hero_marmitaria_banner_1794867991248.jpg';
+import marmitaTradicionalImg from '../assets/images/dish_marmita_tradicional_1794867991059.jpg';
+import frangoGrelhadoImg from '../assets/images/dish_frango_grelhado_1794867991780.jpg';
+import feijoadaCompletaImg from '../assets/images/dish_feijoada_completa_1794867992893.jpg';
+import bifeParmegianaImg from '../assets/images/dish_bife_parmegiana_1794867992966.jpg';
+import pudimCarameloImg from '../assets/images/dish_pudim_caramelo_1794867992816.jpg';
+import { Order, Product, StoreSettings } from '../types';
 
-export const MENU_CATEGORIES: Category[] = [
-  'Marmitas',
-  'Pratos do Dia',
-  'Acompanhamentos',
-  'Bebidas',
-  'Sobremesas',
+export const HERO_BANNER_IMAGE = heroBannerImg;
+
+export const PRESET_DISH_IMAGES = [
+  { label: 'Marmita Tradicional', url: marmitaTradicionalImg },
+  { label: 'Frango Grelhado', url: frangoGrelhadoImg },
+  { label: 'Feijoada Completa', url: feijoadaCompletaImg },
+  { label: 'Bife à Parmegiana', url: bifeParmegianaImg },
+  { label: 'Pudim Caseiro', url: pudimCarameloImg },
 ];
 
-export const HERO_BANNER_IMAGE = '/src/assets/images/hero_marmitaria_table_1794872871052.jpg';
-
-export const DISH_IMAGE_GALLERY = [
-  {
-    label: 'Marmita Frango Grelhado',
-    url: '/src/assets/images/dish_frango_grelhado_1794872871649.jpg',
-  },
-  {
-    label: 'Bife Acebolado',
-    url: '/src/assets/images/dish_bife_acebolado_1794872872311.jpg',
-  },
-  {
-    label: 'Feijoada Completa',
-    url: '/src/assets/images/dish_feijoada_completa_1794872872506.jpg',
-  },
-  {
-    label: 'Mandioca Frita',
-    url: '/src/assets/images/dish_mandioca_frita_1794872873472.jpg',
-  },
-  {
-    label: 'Suco de Laranja Natural',
-    url: '/src/assets/images/dish_suco_laranja_1794872873636.jpg',
-  },
-  {
-    label: 'Pudim de Leite',
-    url: '/src/assets/images/dish_pudim_caramelo_1794872873689.jpg',
-  },
-];
-
-export const DEFAULT_STORE_CONFIG: StoreConfig = {
+export const INITIAL_STORE_SETTINGS: StoreSettings = {
   name: 'Marmitaria do Seu Raimundo',
-  subtitle: 'Comida caseira feita na hora, com tempero de família.',
+  subtitle:
+    'Comida caseira feita na hora com tempero de família. Marmitas caprichadas, pratos executivos e entrega rápida no bairro.',
   phone: '(11) 98765-4321',
-  openingHours: 'Seg a Sáb · 11h00 às 14h30',
-  address: 'Rua das Flores, 240 — Centro',
+  address: 'Rua das Flores, 245 — Vila Nova',
+  openingHours: 'Seg a Sáb · 10h30 às 15h00',
+  deliveryEstimate: '30–45 min',
   deliveryFee: 5.0,
   isOpen: true,
 };
 
-export const DEMO_MENU_ITEMS: MenuItem[] = [
+export const INITIAL_PRODUCTS: Product[] = [
   {
-    id: 'item-1',
-    name: 'Marmita Executiva de Frango Grelhado',
-    description:
-      'Filé de peito de frango grelhado na chapa com ervas frescas, acompanhado de arroz soltinho, feijão carioca caseiro, farofa crocante e salada fresca.',
-    ingredients: 'Peito de frango, arroz branco, feijão carioca, farofa temperada, alface e tomate',
+    id: 'prod-1',
+    name: 'Marmita Tradicional da Casa (G)',
+    category: 'Marmitas',
     price: 22.9,
-    category: 'Marmitas',
-    imageUrl: '/src/assets/images/dish_frango_grelhado_1794872871649.jpg',
+    ingredients:
+      'Arroz soltinho, feijão carioca temperado, bife acebolado na chapa, farofa crocante e batata frita.',
+    description:
+      'A campeã de pedidos do Seu Raimundo: carne macia acebolada na chapa com arroz, feijão fresquinho e acompanhamentos caseiros.',
+    imageUrl: marmitaTradicionalImg,
     available: true,
   },
   {
-    id: 'item-2',
-    name: 'Marmita de Bife Acebolado',
-    description:
-      'Suculento bife bovino acebolado na manteiga de garrafa, servido com arroz branco, feijão preto bem temperado e cubos de batata corada.',
-    ingredients: 'Contra-filé bovino, cebola caramelizada, arroz, feijão preto, batata corada',
-    price: 26.5,
+    id: 'prod-2',
+    name: 'Marmita Frango Grelhado Fitness',
     category: 'Marmitas',
-    imageUrl: '/src/assets/images/dish_bife_acebolado_1794872872311.jpg',
+    price: 21.5,
+    ingredients:
+      'Filé de peito de frango grelhado nas ervas, arroz integral ou branco, feijão, legumes salteados e salada verde.',
+    description:
+      'Refeição leve, equilibrada e bem servida com frango grelhado suculento e legumes frescos do dia.',
+    imageUrl: frangoGrelhadoImg,
     available: true,
   },
   {
-    id: 'item-3',
-    name: 'Feijoada Completa da Casa',
-    description:
-      'Feijoada tradicional preparada em fogo lento com carnes selecionadas, acompanhada de arroz branco, couve refogada no alho, farofa de bacon e laranja.',
-    ingredients: 'Feijão preto, costelinha, paio, calabresa, arroz, couve mineira, farofa e laranja',
+    id: 'prod-3',
+    name: 'Feijoada Completa do Raimundo',
+    category: 'Pratos Executivos',
     price: 32.0,
-    category: 'Pratos do Dia',
-    imageUrl: '/src/assets/images/dish_feijoada_completa_1794872872506.jpg',
+    ingredients:
+      'Feijão preto com carnes nobres, arroz branco, couve refogada no alho, farofa da casa, torresmo e laranja.',
+    description:
+      'Feijoada cozida lentamente no capricho, acompanhada de couve crocante, farofa temperada e rodelas de laranja.',
+    imageUrl: feijoadaCompletaImg,
     available: true,
   },
   {
-    id: 'item-4',
-    name: 'Porção de Mandioca Frita Crocante',
+    id: 'prod-4',
+    name: 'Bife à Parmegiana Executivo',
+    category: 'Pratos Executivos',
+    price: 29.9,
+    ingredients:
+      'Bife empanado crocante, molho de tomate caseiro, queijo mussarela derretido, arroz branco e fritas.',
     description:
-      'Tiras de mandioca selecionada fritas na hora até ficarem douradas por fora e macias por dentro, finalizadas com salsinha fresca.',
-    ingredients: 'Mandioca amarela, sal marinho, salsinha fresca',
-    price: 14.0,
-    category: 'Acompanhamentos',
-    imageUrl: '/src/assets/images/dish_mandioca_frita_1794872873472.jpg',
+      'Empanado na hora e coberto com molho artesanal de tomates maduros e bastante queijo gratinado.',
+    imageUrl: bifeParmegianaImg,
     available: true,
   },
   {
-    id: 'item-5',
-    name: 'Suco Natural de Laranja 400ml',
+    id: 'prod-5',
+    name: 'Porção de Torresmo e Mandioca',
+    category: 'Porções',
+    price: 19.0,
+    ingredients: 'Mandioca cozida e frita na manteiga de garrafa com torresmo pururuca.',
     description:
-      'Suco espremido na hora com laranjas selecionadas, bem gelado e sem adição de conservantes.',
-    ingredients: 'Laranja-pera fresca e gelo',
-    price: 8.5,
-    category: 'Bebidas',
-    imageUrl: '/src/assets/images/dish_suco_laranja_1794872873636.jpg',
-    available: true,
-  },
-  {
-    id: 'item-6',
-    name: 'Pudim de Leite Condensado',
-    description:
-      'Fatia generosa de pudim cremoso tradicional com calda artesanal de caramelo dourado.',
-    ingredients: 'Leite condensado, leite integral, ovos e açúcar caramelizado',
-    price: 9.0,
-    category: 'Sobremesas',
-    imageUrl: '/src/assets/images/dish_pudim_caramelo_1794872873689.jpg',
-    available: true,
-  },
-  {
-    id: 'item-7',
-    name: 'Marmita de Frango à Parmegiana',
-    description:
-      'Filé empanado coberto com molho de tomate caseiro e queijo derretido. (Exemplo de item pausado para demonstração do painel administrativo.)',
-    ingredients: 'Filé de frango empanado, molho de tomate, muçarela, arroz e batata',
-    price: 27.9,
-    category: 'Marmitas',
-    imageUrl: '/src/assets/images/dish_frango_grelhado_1794872871649.jpg',
+      'Porção generosa para acompanhar seu almoço: mandioca macia por dentro e torresmo bem sequinho.',
+    imageUrl: marmitaTradicionalImg,
     available: false,
+  },
+  {
+    id: 'prod-6',
+    name: 'Refrigerante Guaraná Lata 350ml',
+    category: 'Bebidas',
+    price: 6.0,
+    ingredients: 'Lata 350ml servida bem gelada.',
+    description: 'Guaraná tradicional geladinho para acompanhar sua marmita.',
+    imageUrl: frangoGrelhadoImg,
+    available: true,
+  },
+  {
+    id: 'prod-7',
+    name: 'Pudim de Leite Condensado',
+    category: 'Sobremesas',
+    price: 9.5,
+    ingredients: 'Leite condensado, ovos, leite integral e calda de caramelo.',
+    description:
+      'Sobremesa clássica da casa, lisinha e cremosa, finalizada com calda dourada de caramelo.',
+    imageUrl: pudimCarameloImg,
+    available: true,
   },
 ];
 
 function minutesAgoIso(minutes: number): string {
-  const date = new Date(Date.now() - minutes * 60 * 1000);
-  return date.toISOString();
+  return new Date(Date.now() - minutes * 60_000).toISOString();
 }
 
-export const DEMO_ORDERS: Order[] = [
+export const INITIAL_ORDERS: Order[] = [
   {
-    id: 'ord-104',
-    code: '#0104',
+    id: 'ord-demo-1045',
+    code: '#1045',
     createdAt: minutesAgoIso(6),
     customerName: 'Mariana Souza',
-    customerPhone: '(11) 99234-1188',
-    deliveryType: 'Entrega',
+    customerPhone: '(11) 99123-4567',
+    modality: 'entrega',
     address: {
-      street: 'Av. Brasil',
-      number: '512',
+      street: 'Rua das Acácias',
+      number: '118',
       neighborhood: 'Vila Nova',
-      complement: 'Portão cinza, apto 2',
+      complement: 'Portão azul',
     },
     paymentMethod: 'Pix',
+    generalObservation: 'Tocar a campainha ao chegar.',
     items: [
       {
-        menuItemId: 'item-1',
-        name: 'Marmita Executiva de Frango Grelhado',
+        productId: 'prod-1',
+        name: 'Marmita Tradicional da Casa (G)',
         unitPrice: 22.9,
         quantity: 2,
-        notes: 'Uma sem farofa, por favor',
+        observation: 'Sem cebola em uma delas',
       },
       {
-        menuItemId: 'item-5',
-        name: 'Suco Natural de Laranja 400ml',
-        unitPrice: 8.5,
-        quantity: 1,
+        productId: 'prod-6',
+        name: 'Refrigerante Guaraná Lata 350ml',
+        unitPrice: 6.0,
+        quantity: 2,
       },
     ],
-    subtotal: 54.3,
+    subtotal: 57.8,
     deliveryFee: 5.0,
-    total: 59.3,
+    total: 62.8,
     status: 'Recebido',
+    isDemo: true,
   },
   {
-    id: 'ord-103',
-    code: '#0103',
+    id: 'ord-demo-1044',
+    code: '#1044',
     createdAt: minutesAgoIso(18),
-    customerName: 'Carlos Eduardo',
-    customerPhone: '(11) 97112-8840',
-    deliveryType: 'Retirada',
+    customerName: 'Carlos Eduardo Lima',
+    customerPhone: '(11) 97744-8822',
+    modality: 'retirada',
     paymentMethod: 'Cartão',
     items: [
       {
-        menuItemId: 'item-3',
-        name: 'Feijoada Completa da Casa',
+        productId: 'prod-3',
+        name: 'Feijoada Completa do Raimundo',
         unitPrice: 32.0,
         quantity: 1,
       },
       {
-        menuItemId: 'item-6',
+        productId: 'prod-7',
         name: 'Pudim de Leite Condensado',
-        unitPrice: 9.0,
+        unitPrice: 9.5,
         quantity: 1,
       },
     ],
-    subtotal: 41.0,
+    subtotal: 41.5,
     deliveryFee: 0,
-    total: 41.0,
+    total: 41.5,
     status: 'Em preparo',
-    generalNotes: 'Retira às 12h20 no balcão',
+    isDemo: true,
   },
   {
-    id: 'ord-102',
-    code: '#0102',
+    id: 'ord-demo-1043',
+    code: '#1043',
     createdAt: minutesAgoIso(34),
-    customerName: 'Dona Helena',
-    customerPhone: '(11) 98841-2099',
-    deliveryType: 'Entrega',
+    customerName: 'Fernanda Alves',
+    customerPhone: '(11) 98331-2090',
+    modality: 'entrega',
     address: {
-      street: 'Rua Rui Barbosa',
-      number: '88',
+      street: 'Av. Brasil',
+      number: '940',
       neighborhood: 'Centro',
+      complement: 'Loja 2',
     },
     paymentMethod: 'Dinheiro',
-    changeFor: 50.0,
+    changeFor: 50,
     items: [
       {
-        menuItemId: 'item-2',
-        name: 'Marmita de Bife Acebolado',
-        unitPrice: 26.5,
+        productId: 'prod-4',
+        name: 'Bife à Parmegiana Executivo',
+        unitPrice: 29.9,
         quantity: 1,
       },
     ],
-    subtotal: 26.5,
+    subtotal: 29.9,
     deliveryFee: 5.0,
-    total: 31.5,
+    total: 34.9,
     status: 'Saiu para entrega',
+    isDemo: true,
   },
   {
-    id: 'ord-101',
-    code: '#0101',
-    createdAt: minutesAgoIso(75),
-    customerName: 'Lucas Ferreira',
-    customerPhone: '(11) 96500-3321',
-    deliveryType: 'Entrega',
+    id: 'ord-demo-1042',
+    code: '#1042',
+    createdAt: minutesAgoIso(62),
+    customerName: 'João Pedro Martins',
+    customerPhone: '(11) 99550-1122',
+    modality: 'retirada',
+    paymentMethod: 'Pix',
+    items: [
+      {
+        productId: 'prod-2',
+        name: 'Marmita Frango Grelhado Fitness',
+        unitPrice: 21.5,
+        quantity: 2,
+      },
+    ],
+    subtotal: 43.0,
+    deliveryFee: 0,
+    total: 43.0,
+    status: 'Concluído',
+    isDemo: true,
+  },
+  {
+    id: 'ord-demo-1041',
+    code: '#1041',
+    createdAt: minutesAgoIso(85),
+    customerName: 'Patrícia Gomes',
+    customerPhone: '(11) 96412-9087',
+    modality: 'entrega',
     address: {
-      street: 'Rua São Pedro',
-      number: '140',
+      street: 'Rua Ipê Roxo',
+      number: '45',
       neighborhood: 'Jardim América',
     },
     paymentMethod: 'Pix',
     items: [
       {
-        menuItemId: 'item-1',
-        name: 'Marmita Executiva de Frango Grelhado',
+        productId: 'prod-1',
+        name: 'Marmita Tradicional da Casa (G)',
         unitPrice: 22.9,
         quantity: 1,
       },
-      {
-        menuItemId: 'item-4',
-        name: 'Porção de Mandioca Frita Crocante',
-        unitPrice: 14.0,
-        quantity: 1,
-      },
     ],
-    subtotal: 36.9,
+    subtotal: 22.9,
     deliveryFee: 5.0,
-    total: 41.9,
-    status: 'Concluído',
-  },
-  {
-    id: 'ord-100',
-    code: '#0100',
-    createdAt: minutesAgoIso(95),
-    customerName: 'Roberto Lima',
-    customerPhone: '(11) 99100-0011',
-    deliveryType: 'Retirada',
-    paymentMethod: 'Dinheiro',
-    items: [
-      {
-        menuItemId: 'item-2',
-        name: 'Marmita de Bife Acebolado',
-        unitPrice: 26.5,
-        quantity: 1,
-      },
-    ],
-    subtotal: 26.5,
-    deliveryFee: 0,
-    total: 26.5,
+    total: 27.9,
     status: 'Cancelado',
-    generalNotes: 'Cliente desistiu antes do preparo (exemplo cancelado)',
+    isDemo: true,
   },
 ];
