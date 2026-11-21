@@ -193,13 +193,6 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
             >
               Cardápio
             </a>
-            <a
-              href="#info-restaurante"
-              onClick={() => setView('menu')}
-              className="hover:text-[#382B25] transition-colors whitespace-nowrap shrink-0"
-            >
-              Informações
-            </a>
             <button
               type="button"
               onClick={onSwitchToAdmin}
