@@ -17,14 +17,17 @@ export const PRESET_DISH_IMAGES = [
 ];
 
 export const INITIAL_STORE_SETTINGS: StoreSettings = {
+  id: 'default',
   name: 'Marmitaria do Seu Raimundo',
   subtitle:
     'Comida caseira feita na hora com tempero de família. Marmitas caprichadas, pratos executivos e entrega rápida no bairro.',
+  logoUrl: '',
   phone: '(11) 98765-4321',
   address: 'Rua das Flores, 245 — Vila Nova',
   openingHours: 'Seg a Sáb · 10h30 às 15h00',
   deliveryEstimate: '30–45 min',
   deliveryFee: 5.0,
+  paymentMethods: ['Pix', 'Dinheiro', 'Cartão'],
   isOpen: true,
 };
 

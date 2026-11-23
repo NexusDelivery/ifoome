@@ -177,8 +177,7 @@ As especificações detalhadas do MVP estão documentadas nos seguintes arquivos
 - **WhatsApp Complementar:** configuração do número comercial do restaurante nas Configurações e geração de link pronto (`wa.me`) + opção de copiar resumo do pedido na confirmação, com envio iniciado exclusivamente pelo usuário.
 - **Assistente de IA para Descrições (`server.ts`):** rota server-side `POST /api/ai/describe-dish` usando `@google/genai` (`gemini-4-hydrogen`) para sugerir descrições comerciais editáveis a partir do nome e ingredientes, sem expor chave de API no navegador e com tratamento explícito de indisponibilidade/erros.
 
-### Recursos Dependentes de Integração Externa / Próximas Etapas
-- **Persistência em Nuvem / Banco de Dados:** os dados de cardápio, pedidos e configurações estão centralizados na camada `src/services/dataStore.ts` utilizando armazenamento local do navegador (`localStorage`) como ponte temporária até a integração definitiva na etapa de **Tech Lead**.
+### Recursos Dependentes de Integração Externa
 - **Chave da API de IA (`GEMINI_API_KEY`):** a geração de descrições por IA depende da variável `GEMINI_API_KEY` configurada no ambiente do servidor; caso ausente, o cadastro e a edição manual dos pratos continuam operando normalmente.
 
 ---
@@ -189,11 +188,68 @@ O projeto possui workflow de integração e entrega contínua configurado em `.g
 
 - **Branch exclusiva de publicação contínua:** `develop` (a branch `main` permanece reservada para a versão final e estável).
 - **Fluxo automático:** a cada novo `push` na branch `develop`, o GitHub Actions instala as dependências, valida os tipos (`npm run lint`), gera o build estático (`npm run build` com `base` ajustado via `VITE_BASE_PATH` pelo `actions/configure-pages`) e publica o diretório `dist/` no **GitHub Pages**.
-- **Observação sobre IA no deploy estático:** o GitHub Pages hospeda apenas os arquivos estáticos do frontend (`dist/`). O fluxo principal (cardápio, sacola, pedidos, WhatsApp e painel administrativo com `localStorage`) funciona integralmente; já a sugestão automática de descrições com IA (`/api/ai/describe-dish`) requer servidor Node (`server.ts`) com `GEMINI_API_KEY` configurada e degrada com aviso amigável para preenchimento manual no deploy estático.
+- **Observação sobre IA no deploy estático:** o GitHub Pages hospeda apenas os arquivos estáticos do frontend (`dist/`). O fluxo principal conectado ao Firebase (cardápio em tempo real, envio de pedidos, upload de imagens e painel administrativo protegido) funciona normalmente; já a sugestão automática de descrições com IA (`/api/ai/describe-dish`) requer servidor Node (`server.ts`) com `GEMINI_API_KEY` configurada e degrada com aviso amigável para preenchimento manual no deploy estático.
+
+---
+
+## 14. Integração Técnica, Persistência e Segurança (Etapa 4 — Tech Lead)
+
+### Serviços Firebase Utilizados
+A aplicação está conectada ao projeto Firebase existente **`i-foome-delivery`** (configuração pública do SDK web em `firebase-applet-config.json`), utilizando:
+
+1. **Cloud Firestore** *(banco de dados nomeado configurado em `firebase-applet-config.json`)*:
+   - **Finalidade:** persistência em nuvem e sincronização em tempo real do cadastro do restaurante, cardápio de produtos, fila de pedidos e configuração de senha administrativa (`salt` + hash SHA-256).
+2. **Firebase Storage**:
+   - **Finalidade:** armazenar fotografias dos pratos e o logotipo do estabelecimento fora dos documentos do Firestore (com compressão automática no navegador antes do envio e remoção automática do arquivo anterior ao substituir ou excluir um prato/imagem).
+
+### Estrutura Geral dos Dados (Firestore)
+- `restaurants/{restaurantId}` *(documento padrão `default`)*:
+  - `id`, `name`, `logoUrl`, `logoStoragePath`, `phone`, `address`, `openingHours`, `deliveryFee`, `paymentMethods`, `isOpen`, `updatedAt`.
+- `products/{productId}`:
+  - `id`, `name`, `description`, `ingredients`, `price`, `imageUrl`, `imageStoragePath`, `category`, `available`, `createdAt`, `updatedAt`.
+  - Produtos desativados (`available: false`) não são exibidos na vitrine pública do cardápio.
+- `orders/{orderId}`:
+  - `id`, `code`, `createdAt`, `updatedAt`, `customerName`, `customerPhone`, `items` *(snapshot imutável de `productId`, `name`, `unitPrice` no momento da compra, `quantity`, `observation`)*, `modality` (`entrega` ou `retirada`), `address`, `paymentMethod`, `changeFor`, `subtotal`, `deliveryFee`, `total`, `status`.
+  - Pedidos com status `Cancelado` são excluídos do somatório de vendas concluídas no painel.
+- `adminSecurity/meta` e `adminSecurity/config`:
+  - Armazenam respectivamente o *salt* + versão da senha administrativa e o hash SHA-256 da senha atual, permitindo validação e alteração da senha diretamente no painel sem expor a senha em texto puro.
+
+### Autenticação e Segurança
+- **Acesso administrativo por senha (MVP):** o link para a área administrativa fica posicionado de forma discreta no rodapé da vitrine pública (*Área do estabelecimento*), exigindo apenas a senha administrativa (com instrução visível na tela de login para avaliadores e opção de alteração dentro de **Configurações**), sem necessidade de login Google ou cadastro prévio.
+- **Regras de segurança (`firestore.rules` e `storage.rules`):**
+  - Validam esquema completo dos documentos, tamanhos máximos de campos, tipos, timestamps do servidor (`request.time`), limites de consulta, transições válidas de status dos pedidos e bloqueio de exclusões indevidas em pedidos e configurações.
+  - Nenhum segredo privado ou credencial administrativa é armazenado na documentação.
+
+### Orientações para Configuração e Execução Local
+1. **Pré-requisitos:** Node.js 20+ (recomendado Node 22/24) e dependências instaladas.
+2. **Variáveis de ambiente:** copie `.env.example` para `.env` caso queira utilizar o assistente de descrições com IA no servidor local:
+   ```bash
+   cp .env.example .env
+   ```
+   Preencha `GEMINI_API_KEY` no arquivo `.env` local (nunca faça commit de arquivos `.env`).
+3. **Instalação e execução:**
+   ```bash
+   npm install
+   npm run dev
+   ```
+   A aplicação ficará disponível em `http://localhost:3000` (frontend Vite + API Express em `server.ts`).
+4. **Validação e build:**
+   ```bash
+   npm run lint
+   npm run build
+   ```
+
+### Configurações Externas Pendentes no Console do Firebase
+Para o funcionamento completo dos uploads de imagem e da IA em ambiente externo:
+
+1. **Firebase Storage:**
+   - Caso ainda não tenha sido inicializado no Console do projeto `i-foome-delivery`, ative o serviço **Storage** e publique as regras contidas no arquivo `storage.rules` deste repositório.
+2. **Primeiro acesso ao painel administrativo:**
+   - No primeiro acesso com o banco vazio, abra **Área do estabelecimento** e informe a senha provisória exibida na tela de login para inicializar os dados do restaurante, o cardápio inicial e o registro de senha no Firestore.
+3. **Assistente de IA (`GEMINI_API_KEY`):**
+   - Quando hospedado com backend Node (`server.ts`), configure a variável de ambiente `GEMINI_API_KEY` no ambiente do servidor.
 
 ---
 
 *Este documento serve como referência central de contexto para todas as etapas do desenvolvimento do **iFoome Delivery** e deverá ser atualizado conforme novas decisões forem consolidadas, preservando os princípios estabelecidos desde a concepção.*
-
-
 

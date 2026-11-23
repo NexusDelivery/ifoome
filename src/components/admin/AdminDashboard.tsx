@@ -46,12 +46,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Aviso claro de dados demonstrativos */}
+      {/* Indicação de sincronização em nuvem */}
       <div className="flex items-start sm:items-center justify-between gap-3 px-4 py-3 rounded-xl bg-[#F7EFE5] border border-[#E5D6C5] text-xs sm:text-sm text-[#57473F]">
         <div className="flex items-start sm:items-center gap-2.5">
           <Info className="w-4 h-4 text-[#F47B35] shrink-0 mt-0.5 sm:mt-0" aria-hidden="true" />
           <span>
-            <strong>Armazenamento local ativo:</strong> pedidos e alterações no cardápio ficam salvos neste navegador. Itens iniciais servem de exemplo e podem ser restaurados em Configurações.
+            <strong>Sincronização Firebase ativa:</strong> cardápio, pedidos e configurações são salvos no Firestore e atualizados em tempo real entre dispositivos.
           </span>
         </div>
       </div>

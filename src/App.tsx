@@ -15,41 +15,78 @@ import {
   Product,
   StoreSettings,
 } from './types';
+import { INITIAL_STORE_SETTINGS } from './data/mockData';
 import { canTransitionOrderStatus } from './utils/format';
+import { authService } from './services/authService';
 import { dataStore } from './services/dataStore';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { PublicMenuPage } from './components/public/PublicMenuPage';
+import { AdminLoginView } from './components/admin/AdminLoginView';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AdminOrders, OrderFilter } from './components/admin/AdminOrders';
 import { AdminMenu } from './components/admin/AdminMenu';
 import { AdminSettings } from './components/admin/AdminSettings';
 
-export default function App() {
+function AppContent() {
   const [area, setArea] = useState<AppArea>('public');
   const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
   const [ordersFilter, setOrdersFilter] = useState<OrderFilter>('Ativos');
 
-  const [products, setProducts] = useState<Product[]>(
-    () => dataStore.loadInitialData().products
-  );
-  const [orders, setOrders] = useState<Order[]>(
-    () => dataStore.loadInitialData().orders
-  );
-  const [store, setStore] = useState<StoreSettings>(
-    () => dataStore.loadInitialData().store
-  );
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
 
-  useEffect(() => {
-    dataStore.saveProducts(products);
-  }, [products]);
+  const [store, setStore] = useState<StoreSettings>(INITIAL_STORE_SETTINGS);
+  const [publicProducts, setPublicProducts] = useState<Product[]>([]);
+  const [adminProducts, setAdminProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [syncError, setSyncError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    dataStore.saveOrders(orders);
-  }, [orders]);
+  if (syncError) {
+    throw syncError;
+  }
 
+  // Assinaturas públicas em tempo real (não requerem login)
   useEffect(() => {
-    dataStore.saveStore(store);
-  }, [store]);
+    const unsubStore = dataStore.subscribeStore(
+      (nextStore) => setStore(nextStore),
+      (err) => setSyncError(err)
+    );
+    const unsubPublicProducts = dataStore.subscribePublicProducts(
+      (list) => setPublicProducts(list),
+      (err) => setSyncError(err)
+    );
+    return () => {
+      unsubStore();
+      unsubPublicProducts();
+    };
+  }, []);
+
+  // Assinaturas administrativas em tempo real (somente após validar a senha)
+  useEffect(() => {
+    if (!adminUnlocked) {
+      setAdminProducts([]);
+      setOrders([]);
+      return;
+    }
+
+    void dataStore.seedInitialDataIfEmpty().catch((err) => {
+      setSyncError(err instanceof Error ? err : new Error(String(err)));
+    });
+
+    const unsubAdminProducts = dataStore.subscribeAdminProducts(
+      (list) => setAdminProducts(list),
+      (err) => setSyncError(err)
+    );
+    const unsubOrders = dataStore.subscribeAdminOrders(
+      (list) => setOrders(list),
+      (err) => setSyncError(err)
+    );
+
+    return () => {
+      unsubAdminProducts();
+      unsubOrders();
+    };
+  }, [adminUnlocked]);
 
   const activeOrdersCount = orders.filter(
     (o) =>
@@ -58,51 +95,51 @@ export default function App() {
       o.status === 'Saiu para entrega'
   ).length;
 
-  const availableProductsCount = products.filter((p) => p.available).length;
+  const availableProductsCount = adminProducts.filter((p) => p.available).length;
 
-  const handleToggleStoreOpen = () => {
-    setStore((prev) => ({ ...prev, isOpen: !prev.isOpen }));
+  const handleToggleStoreOpen = async () => {
+    await dataStore.saveStore({ ...store, isOpen: !store.isOpen });
   };
 
-  const handleUpdateOrderStatus = (orderId: string, nextStatus: OrderStatus) => {
-    setOrders((prev) =>
-      prev.map((order) => {
-        if (order.id !== orderId) return order;
-        if (!canTransitionOrderStatus(order.status, nextStatus)) {
-          return order;
-        }
-        return { ...order, status: nextStatus };
-      })
-    );
+  const handleUpdateOrderStatus = async (
+    orderId: string,
+    nextStatus: OrderStatus
+  ) => {
+    const target = orders.find((o) => o.id === orderId);
+    if (!target || !canTransitionOrderStatus(target.status, nextStatus)) {
+      return;
+    }
+    await dataStore.updateOrderStatus(orderId, nextStatus);
   };
 
-  const handleSaveProduct = (savedProduct: Product) => {
-    setProducts((prev) => {
-      const exists = prev.some((p) => p.id === savedProduct.id);
-      if (exists) {
-        return prev.map((p) => (p.id === savedProduct.id ? savedProduct : p));
-      }
-      return [savedProduct, ...prev];
-    });
+  const handleSaveProduct = async (
+    savedProduct: Product,
+    isNew: boolean,
+    previousStoragePath?: string
+  ) => {
+    await dataStore.saveProduct(savedProduct, isNew, previousStoragePath);
   };
 
-  const handleToggleProductAvailability = (productId: string) => {
-    setProducts((prev) =>
-      prev.map((p) =>
-        p.id === productId ? { ...p, available: !p.available } : p
-      )
-    );
+  const handleToggleProductAvailability = async (
+    productId: string,
+    nextAvailable: boolean
+  ) => {
+    await dataStore.toggleProductAvailability(productId, nextAvailable);
   };
 
-  const handleDeleteProduct = (productId: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== productId));
+  const handleDeleteProduct = async (product: Product) => {
+    await dataStore.deleteProduct(product);
   };
 
-  const handleResetDemoData = () => {
-    const reset = dataStore.resetToDemo();
-    setProducts(reset.products);
-    setOrders(reset.orders);
-    setStore(reset.store);
+  const handleSaveStoreSettings = async (
+    updated: StoreSettings,
+    previousLogoStoragePath?: string
+  ) => {
+    await dataStore.saveStore(updated, previousLogoStoragePath);
+  };
+
+  const handleResetDemoData = async () => {
+    await dataStore.resetDemoMenuAndStore(adminProducts);
   };
 
   const handleOpenOrdersWithFilter = (filter: OrderFilter) => {
@@ -110,7 +147,7 @@ export default function App() {
     setAdminTab('orders');
   };
 
-  const handlePlaceOrder = (orderInput: {
+  const handlePlaceOrder = async (orderInput: {
     customerName: string;
     customerPhone: string;
     modality: DeliveryModality;
@@ -124,75 +161,41 @@ export default function App() {
     changeFor?: number;
     generalObservation?: string;
     items: CartItem[];
-  }): { ok: boolean; error?: string; order?: Order } => {
-    if (!store.isOpen) {
-      return { ok: false, error: 'O restaurante está fechado no momento.' };
+  }): Promise<{ ok: boolean; error?: string; order?: Order }> => {
+    return dataStore.createOrder(orderInput, publicProducts, store);
+  };
+
+  const handleVerifyAdminPassword = async (password: string) => {
+    const result = await authService.unlockAdminPanel(password);
+    if (result.ok) {
+      setAdminUnlocked(true);
     }
-    if (orderInput.items.length === 0) {
-      return { ok: false, error: 'A sacola está vazia.' };
-    }
+    return result;
+  };
 
-    // Recalcula preços e valida disponibilidade usando os dados oficiais do cardápio (RN-01 / RN-04)
-    const snapshotItems = [];
-    for (const cartItem of orderInput.items) {
-      const catalogItem = products.find((p) => p.id === cartItem.product.id);
-      if (!catalogItem || !catalogItem.available) {
-        return {
-          ok: false,
-          error: `O prato "${cartItem.product.name}" não está mais disponível.`,
-        };
-      }
-      snapshotItems.push({
-        productId: catalogItem.id,
-        name: catalogItem.name,
-        unitPrice: catalogItem.price,
-        quantity: cartItem.quantity,
-        observation: cartItem.observation,
-      });
-    }
-
-    const subtotal = snapshotItems.reduce(
-      (acc, item) => acc + item.unitPrice * item.quantity,
-      0
-    );
-    const deliveryFee = orderInput.modality === 'entrega' ? store.deliveryFee : 0;
-    const total = subtotal + deliveryFee;
-
-    const maxNumericCode = orders.reduce((max, o) => {
-      const parsed = Number.parseInt(o.code.replace(/\D/g, ''), 10);
-      return Number.isNaN(parsed) ? max : Math.max(max, parsed);
-    }, 1045);
-
-    const newOrder: Order = {
-      id: `ord-${Date.now()}`,
-      code: `#${maxNumericCode + 1}`,
-      createdAt: new Date().toISOString(),
-      customerName: orderInput.customerName,
-      customerPhone: orderInput.customerPhone,
-      modality: orderInput.modality,
-      address: orderInput.address,
-      paymentMethod: orderInput.paymentMethod,
-      changeFor: orderInput.changeFor,
-      generalObservation: orderInput.generalObservation,
-      items: snapshotItems,
-      subtotal,
-      deliveryFee,
-      total,
-      status: 'Recebido',
-      isDemo: false,
-    };
-
-    setOrders((prev) => [newOrder, ...prev]);
-    return { ok: true, order: newOrder };
+  const handleLockAdmin = () => {
+    setAdminUnlocked(false);
+    setArea('public');
   };
 
   if (area === 'public') {
     return (
       <PublicMenuPage
-        products={products}
+        products={publicProducts}
         store={store}
         onSwitchToAdmin={() => setArea('admin')}
         onPlaceOrder={handlePlaceOrder}
+      />
+    );
+  }
+
+  if (!adminUnlocked) {
+    return (
+      <AdminLoginView
+        storeName={store.name}
+        logoUrl={store.logoUrl}
+        onVerifyPassword={handleVerifyAdminPassword}
+        onBackToMenu={() => setArea('public')}
       />
     );
   }
@@ -202,19 +205,22 @@ export default function App() {
       activeTab={adminTab}
       onSelectTab={setAdminTab}
       store={store}
-      onToggleStoreOpen={handleToggleStoreOpen}
+      onToggleStoreOpen={() => void handleToggleStoreOpen()}
       activeOrdersCount={activeOrdersCount}
       onSwitchToPublic={() => setArea('public')}
+      onLockAdmin={handleLockAdmin}
     >
       {adminTab === 'dashboard' && (
         <AdminDashboard
           orders={orders}
-          productsCount={products.length}
+          productsCount={adminProducts.length}
           availableProductsCount={availableProductsCount}
           store={store}
           onNavigateTab={setAdminTab}
           onSelectOrdersFilter={handleOpenOrdersWithFilter}
-          onUpdateOrderStatus={handleUpdateOrderStatus}
+          onUpdateOrderStatus={(id, status) =>
+            void handleUpdateOrderStatus(id, status)
+          }
         />
       )}
 
@@ -223,13 +229,15 @@ export default function App() {
           orders={orders}
           filter={ordersFilter}
           onChangeFilter={setOrdersFilter}
-          onUpdateOrderStatus={handleUpdateOrderStatus}
+          onUpdateOrderStatus={(id, status) =>
+            void handleUpdateOrderStatus(id, status)
+          }
         />
       )}
 
       {adminTab === 'menu' && (
         <AdminMenu
-          products={products}
+          products={adminProducts}
           onSaveProduct={handleSaveProduct}
           onToggleAvailability={handleToggleProductAvailability}
           onDeleteProduct={handleDeleteProduct}
@@ -239,10 +247,18 @@ export default function App() {
       {adminTab === 'settings' && (
         <AdminSettings
           settings={store}
-          onSaveSettings={setStore}
+          onSaveSettings={handleSaveStoreSettings}
           onResetDemoData={handleResetDemoData}
         />
       )}
     </AdminLayout>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }

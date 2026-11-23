@@ -19,6 +19,8 @@ export type DeliveryModality = 'entrega' | 'retirada';
 
 export type PaymentMethod = 'Pix' | 'Dinheiro' | 'Cartão';
 
+export const ALL_PAYMENT_METHODS: PaymentMethod[] = ['Pix', 'Dinheiro', 'Cartão'];
+
 export interface Product {
   id: string;
   name: string;
@@ -27,7 +29,10 @@ export interface Product {
   ingredients: string;
   description: string;
   imageUrl: string;
+  imageStoragePath?: string;
   available: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CartItem {
@@ -55,6 +60,7 @@ export interface Order {
   id: string;
   code: string;
   createdAt: string;
+  updatedAt?: string;
   customerName: string;
   customerPhone: string;
   modality: DeliveryModality;
@@ -71,14 +77,19 @@ export interface Order {
 }
 
 export interface StoreSettings {
+  id?: string;
   name: string;
   subtitle: string;
+  logoUrl?: string;
+  logoStoragePath?: string;
   phone: string;
   address: string;
   openingHours: string;
   deliveryEstimate: string;
   deliveryFee: number;
+  paymentMethods: PaymentMethod[];
   isOpen: boolean;
+  updatedAt?: string;
 }
 
 export type AdminTab = 'dashboard' | 'orders' | 'menu' | 'settings';

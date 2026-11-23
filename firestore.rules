@@ -1,0 +1,260 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isBoundedQuery() {
+      return request.query.limit != null && request.query.limit <= 200;
+    }
+
+    function isValidRestaurant(data) {
+      return data.keys().hasAll([
+          'id', 'name', 'phone', 'address', 'openingHours',
+          'deliveryEstimate', 'deliveryFee', 'paymentMethods', 'isOpen', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'subtitle', 'logoUrl', 'logoStoragePath', 'phone',
+          'address', 'openingHours', 'deliveryEstimate', 'deliveryFee',
+          'paymentMethods', 'isOpen', 'updatedAt'
+        ]) &&
+        data.id is string && data.id == 'default' &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+        (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 280)) &&
+        (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 1024)) &&
+        (!('logoStoragePath' in data) || (data.logoStoragePath is string && data.logoStoragePath.size() <= 250)) &&
+        data.phone is string && data.phone.size() >= 8 && data.phone.size() <= 25 &&
+        data.address is string && data.address.size() >= 2 && data.address.size() <= 200 &&
+        data.openingHours is string && data.openingHours.size() >= 2 && data.openingHours.size() <= 100 &&
+        data.deliveryEstimate is string && data.deliveryEstimate.size() >= 2 && data.deliveryEstimate.size() <= 60 &&
+        data.deliveryFee is number && data.deliveryFee >= 0 && data.deliveryFee <= 1000 &&
+        data.paymentMethods is list && data.paymentMethods.size() >= 1 && data.paymentMethods.size() <= 5 &&
+        data.paymentMethods.hasOnly(['Pix', 'Dinheiro', 'Cartão']) &&
+        data.isOpen is bool &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidProduct(data, productId) {
+      return data.keys().hasAll([
+          'id', 'name', 'category', 'price', 'ingredients',
+          'description', 'imageUrl', 'available', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'name', 'category', 'price', 'ingredients',
+          'description', 'imageUrl', 'imageStoragePath', 'available',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id == productId &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 120 &&
+        data.category in ['Marmitas', 'Pratos Executivos', 'Porções', 'Bebidas', 'Sobremesas'] &&
+        data.price is number && data.price > 0 && data.price <= 10000 &&
+        data.ingredients is string && data.ingredients.size() <= 400 &&
+        data.description is string && data.description.size() <= 500 &&
+        data.imageUrl is string && data.imageUrl.size() <= 2048 &&
+        (!('imageStoragePath' in data) || (data.imageStoragePath is string && data.imageStoragePath.size() <= 250)) &&
+        data.available is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidOrderAddress(addr) {
+      return addr is map &&
+        addr.keys().hasAll(['street', 'number', 'neighborhood']) &&
+        addr.keys().hasOnly(['street', 'number', 'neighborhood', 'complement']) &&
+        addr.street is string && addr.street.size() >= 2 && addr.street.size() <= 140 &&
+        addr.number is string && addr.number.size() >= 1 && addr.number.size() <= 30 &&
+        addr.neighborhood is string && addr.neighborhood.size() >= 2 && addr.neighborhood.size() <= 100 &&
+        (!('complement' in addr) || (addr.complement is string && addr.complement.size() <= 120));
+    }
+
+    function isValidFirstOrderItem(item) {
+      return item is map &&
+        item.keys().hasAll(['productId', 'name', 'unitPrice', 'quantity']) &&
+        item.keys().hasOnly(['productId', 'name', 'unitPrice', 'quantity', 'observation']) &&
+        item.productId is string && item.productId.size() >= 1 && item.productId.size() <= 128 &&
+        item.name is string && item.name.size() >= 1 && item.name.size() <= 120 &&
+        item.unitPrice is number && item.unitPrice > 0 && item.unitPrice <= 10000 &&
+        item.quantity is number && item.quantity >= 1 && item.quantity <= 99 &&
+        (!('observation' in item) || (item.observation is string && item.observation.size() <= 300));
+    }
+
+    function isValidOrderCreate(data, orderId) {
+      return data.keys().hasAll([
+          'id', 'code', 'createdAt', 'updatedAt', 'customerName', 'customerPhone',
+          'modality', 'paymentMethod', 'items', 'subtotal', 'deliveryFee', 'total', 'status'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'code', 'createdAt', 'updatedAt', 'customerName', 'customerPhone',
+          'modality', 'address', 'paymentMethod', 'changeFor', 'generalObservation',
+          'items', 'subtotal', 'deliveryFee', 'total', 'status', 'isDemo'
+        ]) &&
+        data.id is string && data.id == orderId &&
+        data.code is string && data.code.size() >= 2 && data.code.size() <= 20 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp &&
+        data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 100 &&
+        data.customerPhone is string && data.customerPhone.size() >= 10 && data.customerPhone.size() <= 25 &&
+        data.modality in ['entrega', 'retirada'] &&
+        (
+          (data.modality == 'entrega' && ('address' in data) && isValidOrderAddress(data.address)) ||
+          (data.modality == 'retirada' && !('address' in data))
+        ) &&
+        data.paymentMethod in ['Pix', 'Dinheiro', 'Cartão'] &&
+        (!('changeFor' in data) || (data.changeFor is number && data.changeFor >= data.total && data.changeFor <= 100000)) &&
+        (!('generalObservation' in data) || (data.generalObservation is string && data.generalObservation.size() <= 500)) &&
+        data.items is list && data.items.size() >= 1 && data.items.size() <= 50 && isValidFirstOrderItem(data.items[0]) &&
+        data.subtotal is number && data.subtotal > 0 && data.subtotal <= 100000 &&
+        data.deliveryFee is number && data.deliveryFee >= 0 && data.deliveryFee <= 1000 &&
+        data.total is number && data.total > 0 && data.total <= 101000 &&
+        data.total >= data.subtotal + data.deliveryFee - 0.02 &&
+        data.total <= data.subtotal + data.deliveryFee + 0.02 &&
+        data.status in ['Recebido', 'Em preparo', 'Saiu para entrega', 'Concluído', 'Cancelado'] &&
+        (!('isDemo' in data) || data.isDemo is bool);
+    }
+
+    function isValidOrderUpdate(nextData, prevData, orderId) {
+      return nextData.id == prevData.id &&
+        nextData.id == orderId &&
+        nextData.code == prevData.code &&
+        nextData.createdAt == prevData.createdAt &&
+        nextData.customerName == prevData.customerName &&
+        nextData.customerPhone == prevData.customerPhone &&
+        nextData.modality == prevData.modality &&
+        nextData.paymentMethod == prevData.paymentMethod &&
+        nextData.items == prevData.items &&
+        nextData.subtotal == prevData.subtotal &&
+        nextData.deliveryFee == prevData.deliveryFee &&
+        nextData.total == prevData.total &&
+        nextData.updatedAt is timestamp &&
+        nextData.status is string &&
+        prevData.status != 'Concluído' &&
+        prevData.status != 'Cancelado' &&
+        (
+          (prevData.status == 'Recebido' && nextData.status in ['Em preparo', 'Cancelado']) ||
+          (prevData.status == 'Em preparo' && nextData.status in ['Saiu para entrega', 'Cancelado']) ||
+          (prevData.status == 'Saiu para entrega' && nextData.status in ['Concluído', 'Cancelado'])
+        );
+    }
+
+    function isValidAdminMeta(data) {
+      return data.keys().hasAll(['salt', 'version', 'updatedAt']) &&
+        data.keys().hasOnly(['salt', 'version', 'updatedAt']) &&
+        data.salt is string && data.salt.size() >= 8 && data.salt.size() <= 128 &&
+        data.version is number && data.version >= 1 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminConfig(data) {
+      return data.keys().hasAll(['passwordHash', 'version', 'updatedAt']) &&
+        data.keys().hasOnly(['passwordHash', 'version', 'updatedBy', 'updatedAt']) &&
+        data.passwordHash is string && data.passwordHash.size() >= 64 && data.passwordHash.size() <= 128 &&
+        data.version is number && data.version >= 1 &&
+        (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy.size() <= 128)) &&
+        data.updatedAt is timestamp;
+    }
+
+    match /test/{docId} {
+      allow get: if docId == 'connection';
+      allow list, write: if false;
+    }
+
+    match /restaurants/{restaurantId} {
+      allow get: if isValidId(restaurantId) && restaurantId == 'default';
+      allow list: if false;
+      allow create: if isValidId(restaurantId) &&
+        restaurantId == 'default' &&
+        isValidRestaurant(incoming()) &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(restaurantId) &&
+        restaurantId == 'default' &&
+        isValidRestaurant(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'subtitle', 'logoUrl', 'logoStoragePath', 'phone',
+          'address', 'openingHours', 'deliveryEstimate', 'deliveryFee',
+          'paymentMethods', 'isOpen', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    match /products/{productId} {
+      allow get: if isValidId(productId);
+      allow list: if isBoundedQuery();
+      allow create: if isValidId(productId) &&
+        isValidProduct(incoming(), productId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(productId) &&
+        isValidProduct(incoming(), productId) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'name', 'category', 'price', 'ingredients', 'description',
+          'imageUrl', 'imageStoragePath', 'available', 'updatedAt'
+        ]);
+      allow delete: if isValidId(productId);
+    }
+
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId);
+      allow list: if isBoundedQuery();
+      allow create: if isValidId(orderId) &&
+        isValidOrderCreate(incoming(), orderId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        existsAfter(/databases/$(database)/documents/restaurants/default) &&
+        getAfter(/databases/$(database)/documents/restaurants/default).data.isOpen == true;
+      allow update: if isValidId(orderId) &&
+        isValidOrderUpdate(incoming(), existing(), orderId) &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    match /adminSecurity/{docId} {
+      allow get: if isValidId(docId) && docId in ['meta', 'config'];
+      allow list: if false;
+      allow create: if isValidId(docId) &&
+        (
+          (docId == 'meta' && isValidAdminMeta(incoming())) ||
+          (docId == 'config' && isValidAdminConfig(incoming()))
+        ) &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(docId) &&
+        (
+          (
+            docId == 'meta' &&
+            isValidAdminMeta(incoming()) &&
+            incoming().version == existing().version + 1
+          ) ||
+          (
+            docId == 'config' &&
+            isValidAdminConfig(incoming()) &&
+            incoming().version == existing().version + 1
+          )
+        ) &&
+        incoming().updatedAt == request.time;
+      allow delete: if false;
+    }
+
+    match /admins/{adminId} {
+      allow read, write: if false;
+    }
+  }
+}

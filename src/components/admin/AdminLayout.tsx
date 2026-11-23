@@ -3,6 +3,7 @@ import {
   ClipboardList,
   ExternalLink,
   LayoutDashboard,
+  LogOut,
   Settings,
   Store,
   UtensilsCrossed,
@@ -17,6 +18,7 @@ interface AdminLayoutProps {
   onToggleStoreOpen: () => void;
   activeOrdersCount: number;
   onSwitchToPublic: () => void;
+  onLockAdmin: () => void | Promise<void>;
   children: React.ReactNode;
 }
 
@@ -27,6 +29,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onToggleStoreOpen,
   activeOrdersCount,
   onSwitchToPublic,
+  onLockAdmin,
   children,
 }) => {
   const navItems: {
@@ -71,7 +74,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       {/* Sidebar Desktop (>= lg) */}
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-[#FFFFFF] border-r border-[#EAE0D5] z-30">
         <div className="h-16 px-5 flex items-center justify-between border-b border-[#EAE0D5]">
-          <BrandMark compact />
+          <BrandMark compact logoUrl={store.logoUrl} alt={store.name} />
           <span className="text-xs font-semibold text-[#6E5D55]">Painel</span>
         </div>
 
@@ -130,7 +133,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           })}
         </nav>
 
-        <div className="p-4 border-t border-[#EAE0D5]">
+        <div className="p-4 border-t border-[#EAE0D5] space-y-2">
           <button
             type="button"
             onClick={onSwitchToPublic}
@@ -139,13 +142,21 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             <ExternalLink className="w-4 h-4 text-[#F47B35]" aria-hidden="true" />
             <span>Ver cardápio público</span>
           </button>
+          <button
+            type="button"
+            onClick={() => void onLockAdmin()}
+            className="w-full min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold text-[#6E5D55] hover:bg-[#FDECE9] hover:text-[#B42318] transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
+          >
+            <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
+            <span>Bloquear e sair do painel</span>
+          </button>
         </div>
       </aside>
 
       {/* Top Bar Mobile (< lg) */}
       <header className="lg:hidden sticky top-0 z-30 h-14 bg-[#FFFFFF]/95 backdrop-blur-md border-b border-[#EAE0D5] px-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <BrandMark compact />
+          <BrandMark compact logoUrl={store.logoUrl} alt={store.name} />
           <span aria-hidden="true" className="text-[#DDD2C6]">
             /
           </span>
@@ -154,7 +165,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </span>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
             onClick={onToggleStoreOpen}
@@ -173,6 +184,16 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             className="min-h-[38px] px-2.5 py-1 rounded-lg border border-[#DDD2C6] text-xs font-semibold text-[#382B25] hover:bg-[#FFF8EF] whitespace-nowrap"
           >
             Cardápio
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void onLockAdmin()}
+            title="Sair do painel administrativo"
+            aria-label="Sair do painel administrativo"
+            className="min-h-[38px] min-w-[38px] px-2 py-1 rounded-lg border border-[#DDD2C6] text-[#6E5D55] hover:bg-[#FDECE9] hover:text-[#B42318] flex items-center justify-center"
+          >
+            <LogOut className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       </header>

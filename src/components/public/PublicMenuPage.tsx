@@ -47,7 +47,7 @@ interface PublicMenuPageProps {
     changeFor?: number;
     generalObservation?: string;
     items: CartItem[];
-  }) => { ok: boolean; error?: string; order?: Order };
+  }) => Promise<{ ok: boolean; error?: string; order?: Order }>;
 }
 
 type PublicView = 'menu' | 'checkout' | 'confirmation';
@@ -139,7 +139,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
     setCart((prev) => prev.filter((_, idx) => idx !== index));
   };
 
-  const handleCheckoutSubmit = (orderData: {
+  const handleCheckoutSubmit = async (orderData: {
     customerName: string;
     customerPhone: string;
     modality: DeliveryModality;
@@ -153,7 +153,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
     changeFor?: number;
     generalObservation?: string;
   }) => {
-    const result = onPlaceOrder({
+    const result = await onPlaceOrder({
       ...orderData,
       items: syncedCart.map(({ product, quantity, observation }) => ({
         product,
@@ -171,7 +171,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
 
   return (
     <div className="min-h-screen bg-[#FFF8EF] text-[#382B25] flex flex-col">
-      {/* Top Bar Contract (3 zonas limpas) */}
+      {/* Top Bar Contract (focado na experiência do cliente) */}
       <header className="sticky top-0 z-30 h-14 sm:h-16 bg-[#FFFFFF]/95 backdrop-blur-md border-b border-[#EAE0D5]">
         <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-8">
           <button
@@ -179,7 +179,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
             onClick={() => setView('menu')}
             className="text-left focus-visible:outline-2 focus-visible:outline-[#F47B35] rounded-lg"
           >
-            <BrandMark />
+            <BrandMark logoUrl={store.logoUrl} alt={store.name} />
           </button>
 
           <nav
@@ -193,24 +193,9 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
             >
               Cardápio
             </a>
-            <button
-              type="button"
-              onClick={onSwitchToAdmin}
-              className="hover:text-[#D94B3D] transition-colors whitespace-nowrap shrink-0"
-            >
-              Painel do Restaurante
-            </button>
           </nav>
 
           <div className="flex items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={onSwitchToAdmin}
-              className="md:hidden min-h-[40px] px-3 py-1.5 rounded-xl border border-[#DDD2C6] text-xs font-semibold text-[#382B25] hover:bg-[#FFF8EF] whitespace-nowrap shrink-0"
-            >
-              Painel
-            </button>
-
             <button
               type="button"
               onClick={() => setCartOpen(true)}
@@ -393,10 +378,14 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
             {visibleProducts.length === 0 ? (
               <div className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-8 text-center">
                 <p className="font-display font-bold text-base text-[#382B25]">
-                  Nenhum prato disponível nessa busca
+                  {availableProducts.length === 0
+                    ? 'Cardápio em atualização no momento'
+                    : 'Nenhum prato disponível nessa busca'}
                 </p>
                 <p className="text-sm text-[#6E5D55] mt-1">
-                  Veja outras categorias acima para conferir os pratos do dia.
+                  {availableProducts.length === 0
+                    ? 'Ainda não há pratos publicados como disponíveis. Volte em instantes ou acesse a área do estabelecimento para cadastrar o cardápio.'
+                    : 'Veja outras categorias acima para conferir os pratos do dia.'}
                 </p>
               </div>
             ) : (
@@ -462,13 +451,23 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
         </main>
       )}
 
-      {/* Rodapé discreto */}
+      {/* Rodapé com acesso discreto ao painel administrativo */}
       <footer className="border-t border-[#EAE0D5] bg-[#FFFFFF] py-5 px-4 sm:px-6 text-xs text-[#6E5D55]">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <span>
             {store.name} · Atendimento {store.openingHours}
           </span>
-          <span>iFoome Delivery · Cardápio digital para pequenos empreendedores</span>
+          <div className="flex items-center gap-4">
+            <span>iFoome Delivery</span>
+            <button
+              type="button"
+              onClick={onSwitchToAdmin}
+              className="inline-flex items-center gap-1.5 text-[#8E7D74] hover:text-[#382B25] transition-colors py-1"
+            >
+              <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Área do estabelecimento</span>
+            </button>
+          </div>
         </div>
       </footer>
 

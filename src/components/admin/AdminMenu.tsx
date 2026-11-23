@@ -14,14 +14,19 @@ import { CATEGORIES, Category, Product } from '../../types';
 import { PRESET_DISH_IMAGES } from '../../data/mockData';
 import { formatCurrency } from '../../utils/format';
 import { generateDishDescription } from '../../services/aiService';
+import { uploadProductImage } from '../../services/storageService';
 import { DishImage } from '../DishImage';
 import { ConfirmDialog } from '../ConfirmDialog';
 
 interface AdminMenuProps {
   products: Product[];
-  onSaveProduct: (product: Product) => void;
-  onToggleAvailability: (productId: string) => void;
-  onDeleteProduct: (productId: string) => void;
+  onSaveProduct: (
+    product: Product,
+    isNew: boolean,
+    previousStoragePath?: string
+  ) => Promise<void>;
+  onToggleAvailability: (productId: string, nextAvailable: boolean) => Promise<void>;
+  onDeleteProduct: (product: Product) => Promise<void>;
 }
 
 interface ProductFormState {
@@ -32,6 +37,8 @@ interface ProductFormState {
   ingredients: string;
   description: string;
   imageUrl: string;
+  imageStoragePath?: string;
+  previousStoragePath?: string;
   available: boolean;
 }
 
@@ -45,33 +52,6 @@ const EMPTY_FORM: ProductFormState = {
   available: true,
 };
 
-function resizeImageFileToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('Falha ao ler arquivo de imagem.'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('Arquivo selecionado não é uma imagem válida.'));
-      img.onload = () => {
-        const maxWidth = 720;
-        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(String(reader.result));
-          return;
-        }
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.8));
-      };
-      img.src = String(reader.result);
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 export const AdminMenu: React.FC<AdminMenuProps> = ({
   products,
   onSaveProduct,
@@ -83,6 +63,8 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<ProductFormState>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiStatus, setAiStatus] = useState<{
     type: 'success' | 'error';
@@ -101,10 +83,15 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
   });
 
   const openNewModal = () => {
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      id: `prod-${Date.now()}`,
+    });
     setFormError(null);
     setAiStatus(null);
     setAiLoading(false);
+    setUploadingImage(false);
+    setSaving(false);
     setModalOpen(true);
   };
 
@@ -117,16 +104,26 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
       ingredients: product.ingredients,
       description: product.description,
       imageUrl: product.imageUrl,
+      imageStoragePath: product.imageStoragePath,
+      previousStoragePath: product.imageStoragePath,
       available: product.available,
     });
     setFormError(null);
     setAiStatus(null);
     setAiLoading(false);
+    setUploadingImage(false);
+    setSaving(false);
     setModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const isEditingExisting = Boolean(
+    form.id && products.some((p) => p.id === form.id)
+  );
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
     const trimmedName = form.name.trim();
     const parsedPrice = Number(form.priceText.replace(',', '.'));
 
@@ -142,18 +139,39 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
       setFormError('Informe um preço válido maior que R$ 0,00.');
       return;
     }
+    if (form.imageUrl.trim().startsWith('data:')) {
+      setFormError(
+        'Envie a fotografia pelo botão "Enviar foto" (Firebase Storage) ou escolha uma URL/foto padrão para evitar arquivos pesados no banco.'
+      );
+      return;
+    }
 
-    onSaveProduct({
-      id: form.id ?? `prod-${Date.now()}`,
-      name: trimmedName,
-      category: form.category,
-      price: Math.round(parsedPrice * 100) / 100,
-      ingredients: form.ingredients.trim(),
-      description: form.description.trim(),
-      imageUrl: form.imageUrl.trim(),
-      available: form.available,
-    });
-    setModalOpen(false);
+    const productId = form.id ?? `prod-${Date.now()}`;
+    setSaving(true);
+    try {
+      await onSaveProduct(
+        {
+          id: productId,
+          name: trimmedName,
+          category: form.category,
+          price: Math.round(parsedPrice * 100) / 100,
+          ingredients: form.ingredients.trim(),
+          description: form.description.trim(),
+          imageUrl: form.imageUrl.trim(),
+          imageStoragePath: form.imageStoragePath,
+          available: form.available,
+        },
+        !isEditingExisting,
+        form.previousStoragePath
+      );
+      setModalOpen(false);
+    } catch {
+      setFormError(
+        'Não foi possível salvar o prato no Firebase. Verifique sua conexão e permissões.'
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleGenerateAiDescription = async () => {
@@ -198,14 +216,26 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     setFormError(null);
+    setUploadingImage(true);
 
+    const targetId = form.id ?? `prod-${Date.now()}`;
     try {
-      const dataUrl = await resizeImageFileToDataUrl(file);
-      setForm((prev) => ({ ...prev, imageUrl: dataUrl }));
+      const uploaded = await uploadProductImage(targetId, file);
+      setForm((prev) => ({
+        ...prev,
+        id: targetId,
+        imageUrl: uploaded.url,
+        imageStoragePath: uploaded.storagePath,
+      }));
     } catch (err) {
       setFormError(
-        err instanceof Error ? err.message : 'Não foi possível carregar a imagem.'
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível enviar a imagem para o Storage.'
       );
+    } finally {
+      setUploadingImage(false);
+      e.target.value = '';
     }
   };
 
@@ -326,7 +356,9 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     type="button"
                     role="switch"
                     aria-checked={product.available}
-                    onClick={() => onToggleAvailability(product.id)}
+                    onClick={() =>
+                      void onToggleAvailability(product.id, !product.available)
+                    }
                     className={`min-h-[40px] px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap ${
                       product.available
                         ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5] hover:bg-[#D1FADF]'
@@ -378,7 +410,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 id="product-form-title"
                 className="font-display font-bold text-xl text-[#382B25]"
               >
-                {form.id ? 'Editar Prato' : 'Novo Prato'}
+                {isEditingExisting ? 'Editar Prato' : 'Novo Prato'}
               </h3>
               <button
                 type="button"
@@ -536,14 +568,28 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     htmlFor="dish-image"
                     className="block text-xs font-semibold text-[#382B25]"
                   >
-                    Fotografia do prato
+                    Fotografia do prato (Firebase Storage ou URL)
                   </label>
-                  <label className="min-h-[34px] px-2.5 py-1 rounded-lg border border-[#DDD2C6] hover:bg-[#FFF8EF] text-xs font-semibold text-[#382B25] inline-flex items-center gap-1.5 cursor-pointer">
-                    <Upload className="w-3.5 h-3.5 text-[#F47B35]" aria-hidden="true" />
-                    <span>Enviar foto</span>
+                  <label
+                    className={`min-h-[34px] px-2.5 py-1 rounded-lg border border-[#DDD2C6] hover:bg-[#FFF8EF] text-xs font-semibold text-[#382B25] inline-flex items-center gap-1.5 cursor-pointer ${
+                      uploadingImage ? 'opacity-60 pointer-events-none' : ''
+                    }`}
+                  >
+                    {uploadingImage ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#F47B35]" aria-hidden="true" />
+                        <span>Enviando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-3.5 h-3.5 text-[#F47B35]" aria-hidden="true" />
+                        <span>Enviar foto</span>
+                      </>
+                    )}
                     <input
                       type="file"
                       accept="image/*"
+                      disabled={uploadingImage}
                       onChange={handleFileUpload}
                       className="sr-only"
                     />
@@ -555,7 +601,13 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     <button
                       key={preset.url}
                       type="button"
-                      onClick={() => setForm({ ...form, imageUrl: preset.url })}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          imageUrl: preset.url,
+                          imageStoragePath: undefined,
+                        })
+                      }
                       className={`shrink-0 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
                         form.imageUrl === preset.url
                           ? 'border-[#F47B35] bg-[#FFF3E6] text-[#382B25]'
@@ -571,8 +623,14 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   id="dish-image"
                   type="text"
                   value={form.imageUrl}
-                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                  placeholder="Caminho, URL ou envie uma foto pelo botão acima (opcional)"
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      imageUrl: e.target.value,
+                      imageStoragePath: undefined,
+                    })
+                  }
+                  placeholder="URL da foto ou envie pelo botão acima (opcional)"
                   className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-xs text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
                 />
 
@@ -606,10 +664,22 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
               </button>
               <button
                 type="submit"
-                className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold flex items-center justify-center gap-2"
+                disabled={saving || uploadingImage}
+                className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] disabled:opacity-60 text-white text-sm font-semibold flex items-center justify-center gap-2"
               >
-                <Check className="w-4 h-4" aria-hidden="true" />
-                <span>{form.id ? 'Salvar Alterações' : 'Cadastrar Prato'}</span>
+                {saving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    <span>Salvando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" aria-hidden="true" />
+                    <span>
+                      {isEditingExisting ? 'Salvar Alterações' : 'Cadastrar Prato'}
+                    </span>
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -620,13 +690,13 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
       <ConfirmDialog
         open={Boolean(productToDelete)}
         title="Excluir prato do cardápio?"
-        description={`Tem certeza que deseja remover "${productToDelete?.name ?? ''}"? Pedidos já feitos com este item continuam registrados normalmente.`}
+        description={`Tem certeza que deseja remover "${productToDelete?.name ?? ''}"? A foto associada no Storage também será removida, e pedidos já realizados continuam preservados.`}
         confirmLabel="Sim, excluir prato"
         destructive
         onCancel={() => setProductToDelete(null)}
         onConfirm={() => {
           if (productToDelete) {
-            onDeleteProduct(productToDelete.id);
+            void onDeleteProduct(productToDelete);
             setProductToDelete(null);
           }
         }}

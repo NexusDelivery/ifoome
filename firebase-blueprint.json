@@ -1,0 +1,408 @@
+{
+  "entities": {
+    "Restaurant": {
+      "title": "Restaurante",
+      "description": "Configurações públicas e operacionais do estabelecimento no iFoome Delivery.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identificador fixo do estabelecimento (default)."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120,
+          "description": "Nome comercial do restaurante."
+        },
+        "subtitle": {
+          "type": "string",
+          "maxLength": 280,
+          "description": "Subtítulo ou slogan exibido no cardápio público."
+        },
+        "logoUrl": {
+          "type": "string",
+          "maxLength": 1024,
+          "description": "URL do logotipo do restaurante (Storage ou URL externa)."
+        },
+        "logoStoragePath": {
+          "type": "string",
+          "maxLength": 250,
+          "description": "Caminho do arquivo do logotipo no Firebase Storage para substituição ou exclusão limpa."
+        },
+        "phone": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 25,
+          "description": "Telefone / WhatsApp comercial."
+        },
+        "address": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 200,
+          "description": "Endereço físico para retirada no local."
+        },
+        "openingHours": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100,
+          "description": "Horário de atendimento."
+        },
+        "deliveryEstimate": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 60,
+          "description": "Tempo médio estimado para entrega."
+        },
+        "deliveryFee": {
+          "type": "number",
+          "description": "Taxa de entrega fixa em reais (0 para entrega gratuita)."
+        },
+        "paymentMethods": {
+          "type": "array",
+          "description": "Formas de pagamento aceitas pelo estabelecimento."
+        },
+        "isOpen": {
+          "type": "boolean",
+          "description": "Indica se o estabelecimento está aberto para receber novos pedidos."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data/hora da última atualização no servidor."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "phone",
+        "address",
+        "openingHours",
+        "deliveryEstimate",
+        "deliveryFee",
+        "paymentMethods",
+        "isOpen",
+        "updatedAt"
+      ]
+    },
+    "Product": {
+      "title": "Produto",
+      "description": "Item do cardápio digital administrado pelo proprietário.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Identificador único do produto."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 120,
+          "description": "Nome do prato ou bebida."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "Marmitas",
+            "Pratos Executivos",
+            "Porções",
+            "Bebidas",
+            "Sobremesas"
+          ],
+          "description": "Categoria do produto no cardápio."
+        },
+        "price": {
+          "type": "number",
+          "description": "Preço unitário em reais (> 0)."
+        },
+        "ingredients": {
+          "type": "string",
+          "maxLength": 400,
+          "description": "Lista resumida de ingredientes principais."
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Descrição comercial do prato."
+        },
+        "imageUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "description": "URL da fotografia do produto."
+        },
+        "imageStoragePath": {
+          "type": "string",
+          "maxLength": 250,
+          "description": "Caminho do arquivo no Firebase Storage para substituição/exclusão sem resíduos."
+        },
+        "available": {
+          "type": "boolean",
+          "description": "Indica se o produto está disponível para compra pública."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data de criação no servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data da última atualização no servidor."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "price",
+        "ingredients",
+        "description",
+        "imageUrl",
+        "available",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Order": {
+      "title": "Pedido",
+      "description": "Pedido realizado por cliente com snapshot de preços e acompanhamento de status.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "Identificador único do pedido."
+        },
+        "code": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 20,
+          "description": "Código legível do pedido (ex.: #1046)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data e horário de registro do pedido no servidor."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Data e horário da última atualização de status."
+        },
+        "customerName": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 100,
+          "description": "Nome do cliente."
+        },
+        "customerPhone": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 25,
+          "description": "Telefone/WhatsApp do cliente."
+        },
+        "modality": {
+          "type": "string",
+          "enum": ["entrega", "retirada"],
+          "description": "Modalidade de recebimento."
+        },
+        "address": {
+          "type": "object",
+          "description": "Endereço completo quando modalidade for entrega."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": ["Pix", "Dinheiro", "Cartão"],
+          "description": "Forma de pagamento selecionada."
+        },
+        "changeFor": {
+          "type": "number",
+          "description": "Valor informado para troco quando pagamento for em dinheiro."
+        },
+        "generalObservation": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Observações adicionais do pedido."
+        },
+        "items": {
+          "type": "array",
+          "description": "Itens solicitados com snapshot de nome, preço unitário, quantidade e observação."
+        },
+        "subtotal": {
+          "type": "number",
+          "description": "Soma dos itens no momento do pedido."
+        },
+        "deliveryFee": {
+          "type": "number",
+          "description": "Taxa de entrega aplicada no momento do pedido."
+        },
+        "total": {
+          "type": "number",
+          "description": "Valor total do pedido (subtotal + taxa)."
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "Recebido",
+            "Em preparo",
+            "Saiu para entrega",
+            "Concluído",
+            "Cancelado"
+          ],
+          "description": "Status operacional do pedido."
+        },
+        "isDemo": {
+          "type": "boolean",
+          "description": "Indica se o registro é um exemplo inicial."
+        }
+      },
+      "required": [
+        "id",
+        "code",
+        "createdAt",
+        "updatedAt",
+        "customerName",
+        "customerPhone",
+        "modality",
+        "paymentMethod",
+        "items",
+        "subtotal",
+        "deliveryFee",
+        "total",
+        "status"
+      ]
+    },
+    "AdminSecurityMeta": {
+      "title": "Metadados de Segurança Administrativa",
+      "description": "Armazena salt não-secreto e versão da senha administrativa para verificação criptográfica.",
+      "type": "object",
+      "properties": {
+        "salt": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 128,
+          "description": "Salt aleatório associado à senha administrativa atual."
+        },
+        "version": {
+          "type": "number",
+          "description": "Versão sequencial da senha; invalida sessões antigas ao alterar a senha."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp da última atualização."
+        }
+      },
+      "required": ["salt", "version", "updatedAt"]
+    },
+    "AdminSecurityConfig": {
+      "title": "Hash da Senha Administrativa",
+      "description": "Armazena exclusivamente o hash SHA-256 com salt da senha administrativa, legível apenas por administradores.",
+      "type": "object",
+      "properties": {
+        "passwordHash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 128,
+          "description": "Hash SHA-256 em hexadecimal da senha administrativa."
+        },
+        "version": {
+          "type": "number",
+          "description": "Versão correspondente da senha."
+        },
+        "updatedBy": {
+          "type": "string",
+          "maxLength": 128,
+          "description": "UID do administrador que realizou a última alteração."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp da última atualização."
+        }
+      },
+      "required": ["passwordHash", "version", "updatedBy", "updatedAt"]
+    },
+    "AdminMember": {
+      "title": "Sessão de Administrador Verificado",
+      "description": "Registro de conta autenticada que validou a senha administrativa vigente.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "maxLength": 128,
+          "description": "UID do usuário autenticado."
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "E-mail verificado da conta conectada."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin"],
+          "description": "Papel administrativo concedido."
+        },
+        "passwordHash": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 128,
+          "description": "Prova criptográfica validada pelas regras de segurança contra adminSecurity/config."
+        },
+        "version": {
+          "type": "number",
+          "description": "Versão da senha validada para esta sessão."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de criação."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp de atualização."
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "role",
+        "passwordHash",
+        "version",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/restaurants/{restaurantId}": {
+      "schema": { "$ref": "#/entities/Restaurant" },
+      "description": "Configurações públicas e operacionais do restaurante (documento default)."
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Catálogo de produtos do cardápio digital."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Pedidos realizados por clientes; leitura e atualização restritas a administradores."
+    },
+    "/adminSecurity/meta": {
+      "schema": { "$ref": "#/entities/AdminSecurityMeta" },
+      "description": "Metadados não-secretos (salt e versão) para verificação de senha administrativa."
+    },
+    "/adminSecurity/config": {
+      "schema": { "$ref": "#/entities/AdminSecurityConfig" },
+      "description": "Hash protegido da senha administrativa."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminMember" },
+      "description": "Contas Google verificadas que validaram a senha administrativa vigente."
+    }
+  }
+}

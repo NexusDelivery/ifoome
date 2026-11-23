@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
   Bike,
   CheckCircle2,
   CreditCard,
+  Loader2,
   MapPin,
   ShoppingBag,
   Trash2,
 } from 'lucide-react';
 import {
+  ALL_PAYMENT_METHODS,
   CartItem,
   DeliveryModality,
   Order,
@@ -42,7 +44,7 @@ interface CheckoutViewProps {
     paymentMethod: PaymentMethod;
     changeFor?: number;
     generalObservation?: string;
-  }) => { ok: boolean; error?: string; order?: Order };
+  }) => Promise<{ ok: boolean; error?: string; order?: Order }>;
 }
 
 export const CheckoutView: React.FC<CheckoutViewProps> = ({
@@ -53,6 +55,11 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   onRemoveCartItem,
   onSubmitOrder,
 }) => {
+  const availablePaymentMethods =
+    store.paymentMethods && store.paymentMethods.length > 0
+      ? store.paymentMethods
+      : ALL_PAYMENT_METHODS;
+
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [modality, setModality] = useState<DeliveryModality>('entrega');
@@ -60,10 +67,19 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const [number, setNumber] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
   const [complement, setComplement] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Pix');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
+    availablePaymentMethods[0]
+  );
   const [changeForText, setChangeForText] = useState('');
   const [generalObservation, setGeneralObservation] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!availablePaymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(availablePaymentMethods[0]);
+    }
+  }, [availablePaymentMethods, paymentMethod]);
 
   const enrichedCart = cart.map((item) => {
     const liveProduct = catalogProducts.find((p) => p.id === item.product.id);
@@ -84,7 +100,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
   const deliveryFee = modality === 'entrega' ? store.deliveryFee : 0;
   const total = subtotal + deliveryFee;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -110,7 +126,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
 
     const phoneDigits = customerPhone.replace(/\D/g, '');
     if (phoneDigits.length < 10 || phoneDigits.length > 11) {
-      setErrorMsg('Informe um telefone/WhatsApp válido com DDD (10 ou 11 dígitos).');
+      setErrorMsg(
+        'Informe um telefone/WhatsApp válido com DDD (10 ou 11 dígitos).'
+      );
       return;
     }
 
@@ -133,26 +151,35 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       parsedChangeFor = Math.round(val * 100) / 100;
     }
 
-    const result = onSubmitOrder({
-      customerName: customerName.trim(),
-      customerPhone: customerPhone.trim(),
-      modality,
-      address:
-        modality === 'entrega'
-          ? {
-              street: street.trim(),
-              number: number.trim(),
-              neighborhood: neighborhood.trim(),
-              complement: complement.trim() || undefined,
-            }
-          : undefined,
-      paymentMethod,
-      changeFor: parsedChangeFor,
-      generalObservation: generalObservation.trim() || undefined,
-    });
+    setSubmitting(true);
+    try {
+      const result = await onSubmitOrder({
+        customerName: customerName.trim(),
+        customerPhone: customerPhone.trim(),
+        modality,
+        address:
+          modality === 'entrega'
+            ? {
+                street: street.trim(),
+                number: number.trim(),
+                neighborhood: neighborhood.trim(),
+                complement: complement.trim() || undefined,
+              }
+            : undefined,
+        paymentMethod,
+        changeFor: parsedChangeFor,
+        generalObservation: generalObservation.trim() || undefined,
+      });
 
-    if (!result.ok) {
-      setErrorMsg(result.error ?? 'Não foi possível concluir o pedido.');
+      if (!result.ok) {
+        setErrorMsg(result.error ?? 'Não foi possível concluir o pedido.');
+      }
+    } catch {
+      setErrorMsg(
+        'Erro ao registrar seu pedido no sistema. Verifique sua conexão e tente novamente.'
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -379,7 +406,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              {(['Pix', 'Dinheiro', 'Cartão'] as PaymentMethod[]).map((method) => {
+              {availablePaymentMethods.map((method) => {
                 const selected = paymentMethod === method;
                 return (
                   <button
@@ -465,13 +492,18 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
           ) : (
             <ul className="divide-y divide-[#F2EAE0]">
               {enrichedCart.map((item, idx) => (
-                <li key={`${item.product.id}-${idx}`} className="py-3 flex items-start justify-between gap-3">
+                <li
+                  key={`${item.product.id}-${idx}`}
+                  className="py-3 flex items-start justify-between gap-3"
+                >
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-[#382B25]">
                       {item.quantity}x {item.product.name}
                     </p>
                     {item.observation && (
-                      <p className="text-xs text-[#6E5D55]">Obs: {item.observation}</p>
+                      <p className="text-xs text-[#6E5D55]">
+                        Obs: {item.observation}
+                      </p>
                     )}
                     {item.unavailable && (
                       <div className="mt-1 flex items-center gap-2">
@@ -510,17 +542,33 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
             </div>
             <div className="flex justify-between font-display font-extrabold text-xl text-[#382B25] pt-2 border-t border-[#F2EAE0]">
               <span>Total</span>
-              <span className="tabular-nums text-[#D94B3D]">{formatCurrency(total)}</span>
+              <span className="tabular-nums text-[#D94B3D]">
+                {formatCurrency(total)}
+              </span>
             </div>
           </div>
 
           <button
             type="submit"
-            disabled={!store.isOpen || enrichedCart.length === 0 || hasUnavailableItems}
+            disabled={
+              !store.isOpen ||
+              enrichedCart.length === 0 ||
+              hasUnavailableItems ||
+              submitting
+            }
             className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] disabled:bg-[#DDD2C6] disabled:text-[#6E5D55] text-white font-semibold text-base flex items-center justify-center gap-2 transition-colors"
           >
-            <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
-            <span>Confirmar Pedido</span>
+            {submitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+                <span>Registrando pedido...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
+                <span>Confirmar Pedido</span>
+              </>
+            )}
           </button>
         </aside>
       </form>
