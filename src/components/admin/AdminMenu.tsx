@@ -243,8 +243,8 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="font-display font-bold text-2xl text-[#382B25]">Cardápio</h2>
-          <p className="text-sm text-[#6E5D55]">
+          <h2 className="font-display font-bold text-2xl text-white">Cardápio</h2>
+          <p className="text-sm text-slate-400">
             Cadastre pratos, ajuste preços e pause itens esgotados em um toque.
           </p>
         </div>
@@ -252,7 +252,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
         <button
           type="button"
           onClick={openNewModal}
-          className="min-h-[44px] px-4 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors whitespace-nowrap shrink-0"
+          className="min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-orange-500/20 whitespace-nowrap shrink-0"
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
           <span>Adicionar Prato</span>
@@ -262,7 +262,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
       {/* Busca e Filtro */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div
-          className="flex items-center gap-1.5 overflow-x-auto pb-1"
+          className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none"
           role="tablist"
           aria-label="Filtrar cardápio por categoria"
         >
@@ -275,10 +275,10 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 role="tab"
                 aria-selected={isActive}
                 onClick={() => setSelectedCategory(cat)}
-                className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0 transition-all border ${
                   isActive
-                    ? 'bg-[#382B25] text-[#FFF8EF]'
-                    : 'bg-[#FFFFFF] border border-[#EAE0D5] text-[#6E5D55] hover:text-[#382B25]'
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white border-transparent shadow-lg shadow-orange-500/20'
+                    : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800'
                 }`}
               >
                 {cat}
@@ -289,7 +289,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
 
         <div className="relative w-full md:w-64 shrink-0">
           <Search
-            className="w-4 h-4 text-[#6E5D55] absolute left-3.5 top-1/2 -translate-y-1/2"
+            className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"
             aria-hidden="true"
           />
           <input
@@ -298,18 +298,18 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar prato..."
             aria-label="Buscar prato no cardápio"
-            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#DDD2C6] text-sm text-[#382B25] placeholder:text-[#8E7D74] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-slate-900 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
           />
         </div>
       </div>
 
       {/* Lista de Produtos */}
       {filteredProducts.length === 0 ? (
-        <div className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-8 text-center">
-          <p className="font-display font-bold text-base text-[#382B25]">
+        <div className="bg-slate-900 rounded-2xl border border-slate-800 p-8 text-center">
+          <p className="font-display font-bold text-base text-white">
             Nenhum prato encontrado
           </p>
-          <p className="text-sm text-[#6E5D55] mt-1">
+          <p className="text-sm text-slate-400 mt-1">
             Cadastre um novo item ou altere o filtro de categoria.
           </p>
         </div>
@@ -318,37 +318,39 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
           {filteredProducts.map((product) => (
             <article
               key={product.id}
-              className={`group bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] overflow-hidden flex flex-col justify-between transition-opacity ${
-                product.available ? '' : 'opacity-80'
+              className={`group bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden flex flex-col justify-between transition-all hover:border-slate-700 ${
+                product.available ? '' : 'opacity-75'
               }`}
             >
               <div>
                 <DishImage src={product.imageUrl} alt={product.name} />
                 <div className="p-4 space-y-2">
-                  <div className="flex items-center justify-between gap-2 text-xs text-[#6E5D55]">
-                    <span>{product.category}</span>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-orange-400/90 font-semibold uppercase tracking-wider">
+                      {product.category}
+                    </span>
                     <span
                       className={`font-semibold ${
-                        product.available ? 'text-[#027A48]' : 'text-[#B42318]'
+                        product.available ? 'text-emerald-400' : 'text-red-400'
                       }`}
                     >
                       {product.available ? 'Disponível' : 'Indisponível'}
                     </span>
                   </div>
 
-                  <h3 className="font-display font-bold text-base text-[#382B25] leading-snug">
+                  <h3 className="font-display font-bold text-base text-white leading-snug">
                     {product.name}
                   </h3>
 
-                  <p className="text-xs sm:text-sm text-[#6E5D55] line-clamp-2">
+                  <p className="text-xs sm:text-sm text-slate-400 line-clamp-2">
                     {product.description || product.ingredients || 'Sem descrição informada.'}
                   </p>
                 </div>
               </div>
 
-              <div className="px-4 pb-4 pt-3 border-t border-[#F2EAE0] space-y-3">
+              <div className="px-4 pb-4 pt-3 border-t border-slate-800 space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-display font-extrabold text-lg text-[#382B25] tabular-nums">
+                  <span className="font-display font-extrabold text-lg text-white tabular-nums">
                     {formatCurrency(product.price)}
                   </span>
 
@@ -361,8 +363,8 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     }
                     className={`min-h-[40px] px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap ${
                       product.available
-                        ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5] hover:bg-[#D1FADF]'
-                        : 'bg-[#F5F1ED] text-[#6E5D55] border-[#DDD2C6] hover:bg-[#EAE0D5]'
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/25'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
                     }`}
                   >
                     {product.available ? 'Pausar item' : 'Ativar item'}
@@ -373,15 +375,15 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   <button
                     type="button"
                     onClick={() => openEditModal(product)}
-                    className="min-h-[44px] px-3 py-2 rounded-xl border border-[#DDD2C6] text-xs sm:text-sm font-semibold text-[#382B25] hover:bg-[#FFF8EF] flex items-center justify-center gap-1.5"
+                    className="min-h-[44px] px-3 py-2 rounded-xl border border-slate-700 bg-slate-800/70 text-xs sm:text-sm font-semibold text-slate-200 hover:bg-slate-800 flex items-center justify-center gap-1.5"
                   >
-                    <Edit3 className="w-4 h-4 text-[#F47B35]" aria-hidden="true" />
+                    <Edit3 className="w-4 h-4 text-orange-400" aria-hidden="true" />
                     <span>Editar</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setProductToDelete(product)}
-                    className="min-h-[44px] px-3 py-2 rounded-xl border border-[#FECDCA] text-xs sm:text-sm font-semibold text-[#B42318] hover:bg-[#FDECE9] flex items-center justify-center gap-1.5"
+                    className="min-h-[44px] px-3 py-2 rounded-xl border border-red-500/40 text-xs sm:text-sm font-semibold text-red-300 hover:bg-red-500/15 flex items-center justify-center gap-1.5"
                   >
                     <Trash2 className="w-4 h-4" aria-hidden="true" />
                     <span>Excluir</span>
@@ -396,19 +398,19 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
       {/* Modal Adicionar / Editar Prato */}
       {modalOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#382B25]/50 backdrop-blur-xs p-0 sm:p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="product-form-title"
         >
           <form
             onSubmit={handleSubmit}
-            className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-[#FFFFFF] rounded-t-3xl sm:rounded-2xl border border-[#EAE0D5] p-5 sm:p-6 shadow-xl space-y-4"
+            className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-700 p-5 sm:p-6 shadow-2xl space-y-4"
           >
             <div className="flex items-center justify-between gap-4">
               <h3
                 id="product-form-title"
-                className="font-display font-bold text-xl text-[#382B25]"
+                className="font-display font-bold text-xl text-white"
               >
                 {isEditingExisting ? 'Editar Prato' : 'Novo Prato'}
               </h3>
@@ -416,7 +418,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 type="button"
                 onClick={() => setModalOpen(false)}
                 aria-label="Fechar formulário de prato"
-                className="min-w-[44px] min-h-[44px] -mr-2 rounded-xl flex items-center justify-center text-[#6E5D55] hover:bg-[#F7EFE5]"
+                className="min-w-[44px] min-h-[44px] -mr-2 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -425,7 +427,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
             {formError && (
               <div
                 role="alert"
-                className="px-4 py-3 rounded-xl bg-[#FDECE9] border border-[#FECDCA] text-sm font-medium text-[#B42318]"
+                className="px-4 py-3 rounded-xl bg-red-950/60 border border-red-500/40 text-sm font-medium text-red-200"
               >
                 {formError}
               </div>
@@ -435,7 +437,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
               <div>
                 <label
                   htmlFor="dish-name"
-                  className="block text-xs font-semibold text-[#382B25] mb-1.5"
+                  className="block text-xs font-semibold text-slate-300 mb-1.5"
                 >
                   Nome do prato *
                 </label>
@@ -446,7 +448,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Ex.: Marmita de Frango Grelhado"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                 />
               </div>
 
@@ -454,7 +456,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 <div>
                   <label
                     htmlFor="dish-category"
-                    className="block text-xs font-semibold text-[#382B25] mb-1.5"
+                    className="block text-xs font-semibold text-slate-300 mb-1.5"
                   >
                     Categoria *
                   </label>
@@ -464,7 +466,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     onChange={(e) =>
                       setForm({ ...form, category: e.target.value as Category })
                     }
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                   >
                     {CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>
@@ -477,7 +479,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 <div>
                   <label
                     htmlFor="dish-price"
-                    className="block text-xs font-semibold text-[#382B25] mb-1.5"
+                    className="block text-xs font-semibold text-slate-300 mb-1.5"
                   >
                     Preço (R$) *
                   </label>
@@ -489,7 +491,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     value={form.priceText}
                     onChange={(e) => setForm({ ...form, priceText: e.target.value })}
                     placeholder="24,90"
-                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] tabular-nums focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+                    className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 tabular-nums focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                   />
                 </div>
               </div>
@@ -497,7 +499,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
               <div>
                 <label
                   htmlFor="dish-ingredients"
-                  className="block text-xs font-semibold text-[#382B25] mb-1.5"
+                  className="block text-xs font-semibold text-slate-300 mb-1.5"
                 >
                   Ingredientes principais
                 </label>
@@ -507,7 +509,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   value={form.ingredients}
                   onChange={(e) => setForm({ ...form, ingredients: e.target.value })}
                   placeholder="Ex.: Arroz, feijão, frango grelhado e salada"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                 />
               </div>
 
@@ -515,7 +517,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <label
                     htmlFor="dish-description"
-                    className="block text-xs font-semibold text-[#382B25]"
+                    className="block text-xs font-semibold text-slate-300"
                   >
                     Descrição comercial (editável)
                   </label>
@@ -523,7 +525,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     type="button"
                     disabled={aiLoading}
                     onClick={handleGenerateAiDescription}
-                    className="min-h-[34px] px-2.5 py-1 rounded-lg bg-[#FFF3E6] hover:bg-[#FFE6CC] disabled:opacity-60 border border-[#F47B35]/35 text-xs font-semibold text-[#B54708] inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
+                    className="min-h-[34px] px-2.5 py-1 rounded-lg bg-orange-500/15 hover:bg-orange-500/25 disabled:opacity-60 border border-orange-500/35 text-xs font-semibold text-orange-300 inline-flex items-center gap-1.5 whitespace-nowrap transition-colors"
                   >
                     {aiLoading ? (
                       <>
@@ -532,7 +534,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-3.5 h-3.5 text-[#D94B3D]" aria-hidden="true" />
+                        <Sparkles className="w-3.5 h-3.5 text-orange-400" aria-hidden="true" />
                         <span>Gerar descrição com IA</span>
                       </>
                     )}
@@ -544,8 +546,8 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     role={aiStatus.type === 'error' ? 'alert' : 'status'}
                     className={`mb-2 px-3 py-2 rounded-xl border text-xs ${
                       aiStatus.type === 'success'
-                        ? 'bg-[#ECFDF3] border-[#A6F4C5] text-[#027A48]'
-                        : 'bg-[#FFF3E6] border-[#F47B35]/35 text-[#B54708]'
+                        ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300'
+                        : 'bg-amber-500/15 border-amber-500/35 text-amber-200'
                     }`}
                   >
                     {aiStatus.message}
@@ -558,7 +560,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Descreva o prato de forma apetitosa ou use o assistente de IA acima para sugerir um texto..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                 />
               </div>
 
@@ -566,23 +568,23 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 <div className="flex items-center justify-between gap-2">
                   <label
                     htmlFor="dish-image"
-                    className="block text-xs font-semibold text-[#382B25]"
+                    className="block text-xs font-semibold text-slate-300"
                   >
                     Fotografia do prato (Firebase Storage ou URL)
                   </label>
                   <label
-                    className={`min-h-[34px] px-2.5 py-1 rounded-lg border border-[#DDD2C6] hover:bg-[#FFF8EF] text-xs font-semibold text-[#382B25] inline-flex items-center gap-1.5 cursor-pointer ${
+                    className={`min-h-[34px] px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 inline-flex items-center gap-1.5 cursor-pointer ${
                       uploadingImage ? 'opacity-60 pointer-events-none' : ''
                     }`}
                   >
                     {uploadingImage ? (
                       <>
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#F47B35]" aria-hidden="true" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-400" aria-hidden="true" />
                         <span>Enviando...</span>
                       </>
                     ) : (
                       <>
-                        <Upload className="w-3.5 h-3.5 text-[#F47B35]" aria-hidden="true" />
+                        <Upload className="w-3.5 h-3.5 text-orange-400" aria-hidden="true" />
                         <span>Enviar foto</span>
                       </>
                     )}
@@ -596,7 +598,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   </label>
                 </div>
 
-                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                   {PRESET_DISH_IMAGES.map((preset) => (
                     <button
                       key={preset.url}
@@ -610,8 +612,8 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                       }
                       className={`shrink-0 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
                         form.imageUrl === preset.url
-                          ? 'border-[#F47B35] bg-[#FFF3E6] text-[#382B25]'
-                          : 'border-[#DDD2C6] text-[#6E5D55] hover:bg-[#FFF8EF]'
+                          ? 'border-orange-500 bg-orange-500/15 text-orange-200'
+                          : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-800'
                       }`}
                     >
                       {preset.label}
@@ -631,24 +633,24 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                     })
                   }
                   placeholder="URL da foto ou envie pelo botão acima (opcional)"
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-xs text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                 />
 
                 {form.imageUrl && (
-                  <div className="rounded-xl overflow-hidden border border-[#EAE0D5] max-w-[200px]">
+                  <div className="rounded-xl overflow-hidden border border-slate-700 max-w-[200px]">
                     <DishImage src={form.imageUrl} alt={form.name || 'Prévia do prato'} />
                   </div>
                 )}
               </div>
 
-              <label className="flex items-center gap-3 min-h-[44px] px-3.5 py-2 rounded-xl bg-[#FFF8EF] border border-[#EAE0D5] cursor-pointer">
+              <label className="flex items-center gap-3 min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/60 border border-slate-700 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={form.available}
                   onChange={(e) => setForm({ ...form, available: e.target.checked })}
-                  className="w-5 h-5 accent-[#F47B35] rounded"
+                  className="w-5 h-5 accent-orange-500 rounded"
                 />
-                <span className="text-sm font-semibold text-[#382B25]">
+                <span className="text-sm font-semibold text-slate-200">
                   Prato disponível para pedidos agora
                 </span>
               </label>
@@ -658,14 +660,14 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
-                className="min-h-[44px] px-4 py-2.5 rounded-xl border border-[#DDD2C6] text-sm font-semibold text-[#382B25] hover:bg-[#F7EFE5]"
+                className="min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-sm font-semibold text-slate-200 hover:bg-slate-700"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={saving || uploadingImage}
-                className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] disabled:opacity-60 text-white text-sm font-semibold flex items-center justify-center gap-2"
+                className="min-h-[44px] px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 disabled:opacity-60 text-white text-sm font-semibold flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20"
               >
                 {saving ? (
                   <>

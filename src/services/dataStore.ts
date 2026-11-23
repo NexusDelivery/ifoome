@@ -23,7 +23,9 @@ import {
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import {
   ALL_PAYMENT_METHODS,
+  CATEGORIES,
   type CartItem,
+  type Category,
   type DeliveryModality,
   type Order,
   type OrderStatus,
@@ -34,6 +36,57 @@ import {
 import { deleteStorageFileIfManaged } from './storageService';
 
 const RESTAURANT_DOC_ID = 'default';
+
+const CATEGORY_ORDER = new Map<Category, number>(
+  CATEGORIES.map((cat, idx) => [cat, idx])
+);
+
+function sortProductsByCategoryOrder(list: Product[]): Product[] {
+  return [...list].sort((a, b) => {
+    const orderA = CATEGORY_ORDER.get(a.category) ?? 99;
+    const orderB = CATEGORY_ORDER.get(b.category) ?? 99;
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    return a.name.localeCompare(b.name, 'pt-BR');
+  });
+}
+
+function inferExpectedCategory(name: string): Category | null {
+  const normalized = name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+  if (
+    /(pudim|brownie|sobremesa|mousse|torta|bolo|sorvete|acai|pave|brigadeiro|doce)/.test(
+      normalized
+    )
+  ) {
+    return 'Sobremesas';
+  }
+  if (
+    /(suco|refrigerante|guarana|coca|pepsi|agua|cerveja|bebida|milkshake|soda|refri|cha|limonada)/.test(
+      normalized
+    )
+  ) {
+    return 'Bebidas';
+  }
+  if (
+    /(porcao|porcoes|torresmo|mandioca|batata frita|calabresa|petisco|pastel)/.test(
+      normalized
+    )
+  ) {
+    return 'Porções';
+  }
+  if (/(feijoada|parmegiana|executivo|picanha|contrafile|file)/.test(normalized)) {
+    return 'Pratos Executivos';
+  }
+  if (/(marmita|marmitex|quentinha)/.test(normalized)) {
+    return 'Marmitas';
+  }
+  return null;
+}
 
 function toIsoString(value: unknown): string {
   if (value instanceof Timestamp) {
@@ -189,8 +242,7 @@ export const dataStore = {
         const list = snapshot.docs.map((d) =>
           normalizeProduct(d.id, d.data() as Record<string, unknown>)
         );
-        list.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-        onData(list);
+        onData(sortProductsByCategoryOrder(list));
       },
       (err) => {
         try {
@@ -213,12 +265,7 @@ export const dataStore = {
         const list = snapshot.docs.map((d) =>
           normalizeProduct(d.id, d.data() as Record<string, unknown>)
         );
-        list.sort((a, b) => {
-          const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-          return timeB - timeA;
-        });
-        onData(list);
+        onData(sortProductsByCategoryOrder(list));
       },
       (err) => {
         try {
@@ -354,6 +401,162 @@ export const dataStore = {
       await batch.commit();
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'restaurants/default');
+    }
+  },
+
+  async syncCatalogCategoriesAndCoverage(): Promise<void> {
+    const STORAGE_KEY = 'nexus_catalog_sync_v2';
+    try {
+      if (
+        typeof window !== 'undefined' &&
+        window.localStorage.getItem(STORAGE_KEY) === 'done'
+      ) {
+        return;
+      }
+    } catch {
+      // ignore storage access issues
+    }
+
+    try {
+      const restaurantSnap = await getDoc(
+        doc(db, 'restaurants', RESTAURANT_DOC_ID)
+      );
+      if (!restaurantSnap.exists()) {
+        return;
+      }
+
+      const productsSnap = await getDocs(
+        query(collection(db, 'products'), limit(200))
+      );
+      const existingProducts = productsSnap.docs.map((d) =>
+        normalizeProduct(d.id, d.data() as Record<string, unknown>)
+      );
+      const existingById = new Map(existingProducts.map((p) => [p.id, p]));
+
+      const batch = writeBatch(db);
+      let hasChanges = false;
+      const effectiveState = new Map<string, Product>(
+        existingProducts.map((p) => [p.id, { ...p }])
+      );
+
+      // 1. Garante categoria correta para produtos existentes e corrige fotos/disponibilidade padrão antigas
+      for (const product of existingProducts) {
+        const updates: Record<string, unknown> = {};
+        const inferred = inferExpectedCategory(product.name);
+        if (inferred && product.category !== inferred) {
+          updates.category = inferred;
+          effectiveState.get(product.id)!.category = inferred;
+        }
+
+        const initialMatch = INITIAL_PRODUCTS.find((p) => p.id === product.id);
+        if (initialMatch) {
+          if (
+            product.id === 'prod-5' &&
+            (!product.imageUrl ||
+              product.imageUrl.includes('marmita_tradicional') ||
+              !product.available)
+          ) {
+            updates.imageUrl = initialMatch.imageUrl;
+            updates.available = true;
+            effectiveState.get(product.id)!.imageUrl = initialMatch.imageUrl;
+            effectiveState.get(product.id)!.available = true;
+          }
+          if (
+            product.id === 'prod-6' &&
+            (!product.imageUrl || product.imageUrl.includes('frango_grelhado'))
+          ) {
+            updates.imageUrl = initialMatch.imageUrl;
+            effectiveState.get(product.id)!.imageUrl = initialMatch.imageUrl;
+          }
+        }
+
+        if (Object.keys(updates).length > 0) {
+          updates.updatedAt = serverTimestamp();
+          batch.update(doc(db, 'products', product.id), updates);
+          hasChanges = true;
+        }
+      }
+
+      // 2. Garante que prod-8 e prod-9 existam se ainda não estiverem cadastrados
+      for (const extraId of ['prod-8', 'prod-9']) {
+        if (!existingById.has(extraId)) {
+          const item = INITIAL_PRODUCTS.find((p) => p.id === extraId);
+          if (item) {
+            batch.set(doc(db, 'products', item.id), {
+              id: item.id,
+              name: item.name,
+              category: item.category,
+              price: item.price,
+              ingredients: item.ingredients,
+              description: item.description,
+              imageUrl: item.imageUrl,
+              available: item.available,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+            effectiveState.set(item.id, { ...item });
+            hasChanges = true;
+          }
+        }
+      }
+
+      // 3. Garante que todas as categorias tenham pelo menos 1 item disponível
+      for (const category of CATEGORIES) {
+        const stateList = Array.from(effectiveState.values());
+        const hasAvailable = stateList.some(
+          (p) => p.category === category && p.available
+        );
+        if (hasAvailable) continue;
+
+        const pausedInCategory = stateList.find(
+          (p) => p.category === category && !p.available
+        );
+        if (pausedInCategory) {
+          batch.update(doc(db, 'products', pausedInCategory.id), {
+            available: true,
+            updatedAt: serverTimestamp(),
+          });
+          pausedInCategory.available = true;
+          hasChanges = true;
+        } else {
+          const fallbackProduct = INITIAL_PRODUCTS.find(
+            (p) => p.category === category && !effectiveState.has(p.id)
+          );
+          if (fallbackProduct) {
+            batch.set(doc(db, 'products', fallbackProduct.id), {
+              id: fallbackProduct.id,
+              name: fallbackProduct.name,
+              category: fallbackProduct.category,
+              price: fallbackProduct.price,
+              ingredients: fallbackProduct.ingredients,
+              description: fallbackProduct.description,
+              imageUrl: fallbackProduct.imageUrl,
+              available: true,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+            effectiveState.set(fallbackProduct.id, {
+              ...fallbackProduct,
+              available: true,
+            });
+            hasChanges = true;
+          }
+        }
+      }
+
+      if (hasChanges) {
+        await batch.commit();
+      }
+
+      try {
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(STORAGE_KEY, 'done');
+        }
+      } catch {
+        // ignore storage access issues
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'products');
     }
   },
 

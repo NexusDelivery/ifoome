@@ -70,22 +70,24 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     navItems.find((item) => item.id === activeTab)?.label ?? 'Resumo do Dia';
 
   return (
-    <div className="min-h-screen bg-[#FFF8EF] text-[#382B25] flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col lg:flex-row">
       {/* Sidebar Desktop (>= lg) */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-[#FFFFFF] border-r border-[#EAE0D5] z-30">
-        <div className="h-16 px-5 flex items-center justify-between border-b border-[#EAE0D5]">
+      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-slate-900 border-r border-slate-800 z-30">
+        <div className="h-16 px-5 flex items-center justify-between border-b border-slate-800">
           <BrandMark compact logoUrl={store.logoUrl} alt={store.name} />
-          <span className="text-xs font-semibold text-[#6E5D55]">Painel</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            Painel
+          </span>
         </div>
 
-        <div className="p-4 border-b border-[#F2EAE0]">
+        <div className="p-4 border-b border-slate-800">
           <button
             type="button"
             onClick={onToggleStoreOpen}
             className={`w-full min-h-[48px] px-3.5 py-2.5 rounded-xl border text-left flex items-center justify-between gap-2 transition-colors ${
               store.isOpen
-                ? 'bg-[#ECFDF3] border-[#A6F4C5] text-[#027A48]'
-                : 'bg-[#FDECE9] border-[#FECDCA] text-[#B42318]'
+                ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300'
+                : 'bg-red-500/15 border-red-500/35 text-red-300'
             }`}
           >
             <span className="flex items-center gap-2 text-sm font-bold">
@@ -107,10 +109,10 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 key={item.id}
                 type="button"
                 onClick={() => onSelectTab(item.id)}
-                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-sm font-semibold transition-colors whitespace-nowrap ${
+                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl flex items-center justify-between gap-3 text-sm font-semibold transition-all whitespace-nowrap ${
                   isActive
-                    ? 'bg-[#D94B3D] text-white'
-                    : 'text-[#57473F] hover:bg-[#FFF8EF] hover:text-[#382B25]'
+                    ? 'bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/20'
+                    : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`}
               >
                 <span className="flex items-center gap-3">
@@ -121,8 +123,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   <span
                     className={`text-xs px-2 py-0.5 rounded-md tabular-nums font-bold ${
                       isActive
-                        ? 'bg-[#FFF8EF] text-[#D94B3D]'
-                        : 'bg-[#FFF3E6] text-[#B54708]'
+                        ? 'bg-slate-950/70 text-orange-300'
+                        : 'bg-orange-500/15 text-orange-300 border border-orange-500/30'
                     }`}
                   >
                     {item.badge}
@@ -133,19 +135,19 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           })}
         </nav>
 
-        <div className="p-4 border-t border-[#EAE0D5] space-y-2">
+        <div className="p-4 border-t border-slate-800 space-y-2">
           <button
             type="button"
             onClick={onSwitchToPublic}
-            className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-[#DDD2C6] bg-[#FFFFFF] text-sm font-semibold text-[#382B25] hover:bg-[#FFF8EF] transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+            className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/70 text-sm font-semibold text-slate-200 hover:bg-slate-800 hover:text-white transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
           >
-            <ExternalLink className="w-4 h-4 text-[#F47B35]" aria-hidden="true" />
+            <ExternalLink className="w-4 h-4 text-orange-400" aria-hidden="true" />
             <span>Ver cardápio público</span>
           </button>
           <button
             type="button"
             onClick={() => void onLockAdmin()}
-            className="w-full min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold text-[#6E5D55] hover:bg-[#FDECE9] hover:text-[#B42318] transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
+            className="w-full min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:bg-red-500/15 hover:text-red-300 transition-colors flex items-center justify-center gap-1.5 whitespace-nowrap"
           >
             <LogOut className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Bloquear e sair do painel</span>
@@ -154,13 +156,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       </aside>
 
       {/* Top Bar Mobile (< lg) */}
-      <header className="lg:hidden sticky top-0 z-30 h-14 bg-[#FFFFFF]/95 backdrop-blur-md border-b border-[#EAE0D5] px-4 flex items-center justify-between gap-3">
+      <header className="lg:hidden sticky top-0 z-30 h-14 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <BrandMark compact logoUrl={store.logoUrl} alt={store.name} />
-          <span aria-hidden="true" className="text-[#DDD2C6]">
+          <span aria-hidden="true" className="text-slate-700">
             /
           </span>
-          <span className="text-sm font-semibold text-[#382B25] truncate">
+          <span className="text-sm font-semibold text-slate-200 truncate">
             {activeTitle}
           </span>
         </div>
@@ -171,8 +173,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             onClick={onToggleStoreOpen}
             className={`min-h-[38px] px-2.5 py-1 rounded-lg text-xs font-bold border whitespace-nowrap ${
               store.isOpen
-                ? 'bg-[#ECFDF3] border-[#A6F4C5] text-[#027A48]'
-                : 'bg-[#FDECE9] border-[#FECDCA] text-[#B42318]'
+                ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300'
+                : 'bg-red-500/15 border-red-500/35 text-red-300'
             }`}
           >
             {store.isOpen ? 'Aberta' : 'Fechada'}
@@ -181,7 +183,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           <button
             type="button"
             onClick={onSwitchToPublic}
-            className="min-h-[38px] px-2.5 py-1 rounded-lg border border-[#DDD2C6] text-xs font-semibold text-[#382B25] hover:bg-[#FFF8EF] whitespace-nowrap"
+            className="min-h-[38px] px-2.5 py-1 rounded-lg border border-slate-700 bg-slate-800 text-xs font-semibold text-slate-200 hover:bg-slate-700 whitespace-nowrap"
           >
             Cardápio
           </button>
@@ -191,7 +193,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
             onClick={() => void onLockAdmin()}
             title="Sair do painel administrativo"
             aria-label="Sair do painel administrativo"
-            className="min-h-[38px] min-w-[38px] px-2 py-1 rounded-lg border border-[#DDD2C6] text-[#6E5D55] hover:bg-[#FDECE9] hover:text-[#B42318] flex items-center justify-center"
+            className="min-h-[38px] min-w-[38px] px-2 py-1 rounded-lg border border-slate-700 text-slate-400 hover:bg-red-500/15 hover:text-red-300 flex items-center justify-center"
           >
             <LogOut className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -201,19 +203,19 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       {/* Área Principal */}
       <main className="flex-1 lg:pl-64 pb-24 lg:pb-10">
         {/* Top Bar Desktop */}
-        <div className="hidden lg:flex h-16 bg-[#FFFFFF] border-b border-[#EAE0D5] px-8 items-center justify-between gap-6">
+        <div className="hidden lg:flex h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-8 items-center justify-between gap-6 sticky top-0 z-20">
           <div className="flex items-center gap-2 text-sm">
-            <span className="text-[#6E5D55] font-medium">{store.name}</span>
-            <span aria-hidden="true" className="text-[#DDD2C6]">
+            <span className="text-slate-400 font-medium">{store.name}</span>
+            <span aria-hidden="true" className="text-slate-700">
               /
             </span>
-            <h1 className="font-display font-bold text-[#382B25]">{activeTitle}</h1>
+            <h1 className="font-display font-bold text-white">{activeTitle}</h1>
           </div>
 
           <button
             type="button"
             onClick={onSwitchToPublic}
-            className="min-h-[40px] px-4 py-2 rounded-xl bg-[#F47B35] hover:bg-[#E06822] text-white text-xs font-semibold transition-colors inline-flex items-center gap-2 whitespace-nowrap shrink-0"
+            className="min-h-[40px] px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-xs font-semibold transition-all shadow-md shadow-orange-500/20 inline-flex items-center gap-2 whitespace-nowrap shrink-0"
           >
             <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Abrir cardápio do cliente</span>
@@ -226,7 +228,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       {/* Bottom Tab Bar Mobile (< lg) */}
       <nav
         aria-label="Navegação administrativa mobile"
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-[#FFFFFF]/95 backdrop-blur-md border-t border-[#EAE0D5] grid grid-cols-4 items-center"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-40 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 grid grid-cols-4 items-center"
       >
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -237,13 +239,13 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               type="button"
               onClick={() => onSelectTab(item.id)}
               className={`relative h-full flex flex-col items-center justify-center gap-1 transition-colors ${
-                isActive ? 'text-[#D94B3D]' : 'text-[#6E5D55] hover:text-[#382B25]'
+                isActive ? 'text-orange-400' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <span className="relative">
                 <Icon className="w-5 h-5" aria-hidden="true" />
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-md bg-[#F47B35] text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
+                  <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-[18px] px-1 rounded-md bg-orange-500 text-white text-[10px] font-bold flex items-center justify-center tabular-nums">
                     {item.badge}
                   </span>
                 )}

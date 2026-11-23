@@ -34,21 +34,21 @@ export class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-[#FFF8EF] text-[#382B25] flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-6 text-center space-y-4 shadow-sm">
-            <div className="w-12 h-12 rounded-2xl bg-[#FDECE9] text-[#D94B3D] flex items-center justify-center mx-auto">
+        <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-slate-900 rounded-3xl border border-slate-800 p-6 text-center space-y-4 shadow-2xl">
+            <div className="w-12 h-12 rounded-2xl bg-red-500/15 text-red-400 border border-red-500/30 flex items-center justify-center mx-auto">
               <AlertTriangle className="w-6 h-6" aria-hidden="true" />
             </div>
-            <h1 className="font-display font-bold text-xl text-[#382B25]">
+            <h1 className="font-display font-bold text-xl text-white">
               Algo deu errado
             </h1>
-            <p className="text-sm text-[#6E5D55] leading-relaxed">
+            <p className="text-sm text-slate-400 leading-relaxed">
               {this.state.message}
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-sm font-semibold inline-flex items-center gap-2 transition-colors"
+              className="min-h-[44px] px-5 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white text-sm font-semibold inline-flex items-center gap-2 transition-all shadow-lg shadow-orange-500/20"
             >
               <RefreshCw className="w-4 h-4" aria-hidden="true" />
               <span>Recarregar aplicação</span>

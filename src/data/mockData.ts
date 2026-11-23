@@ -4,6 +4,10 @@ import frangoGrelhadoImg from '../assets/images/dish_frango_grelhado_17948679917
 import feijoadaCompletaImg from '../assets/images/dish_feijoada_completa_1794867992893.jpg';
 import bifeParmegianaImg from '../assets/images/dish_bife_parmegiana_1794867992966.jpg';
 import pudimCarameloImg from '../assets/images/dish_pudim_caramelo_1794867992816.jpg';
+import sucoLaranjaImg from '../assets/images/dish_suco_laranja_1794872873636.jpg';
+import brownieChocolateImg from '../assets/images/dish_brownie_chocolate_1795390815351.jpg';
+import mandiocaFritaImg from '../assets/images/dish_mandioca_frita_1794872873472.jpg';
+import guaranaLataImg from '../assets/images/dish_guarana_lata_1795391688699.jpg';
 import { Order, Product, StoreSettings } from '../types';
 
 export const HERO_BANNER_IMAGE = heroBannerImg;
@@ -13,7 +17,11 @@ export const PRESET_DISH_IMAGES = [
   { label: 'Frango Grelhado', url: frangoGrelhadoImg },
   { label: 'Feijoada Completa', url: feijoadaCompletaImg },
   { label: 'Bife à Parmegiana', url: bifeParmegianaImg },
+  { label: 'Porção de Mandioca', url: mandiocaFritaImg },
+  { label: 'Refrigerante Guaraná', url: guaranaLataImg },
+  { label: 'Suco Natural de Laranja', url: sucoLaranjaImg },
   { label: 'Pudim Caseiro', url: pudimCarameloImg },
+  { label: 'Brownie com Calda', url: brownieChocolateImg },
 ];
 
 export const INITIAL_STORE_SETTINGS: StoreSettings = {
@@ -88,8 +96,8 @@ export const INITIAL_PRODUCTS: Product[] = [
     ingredients: 'Mandioca cozida e frita na manteiga de garrafa com torresmo pururuca.',
     description:
       'Porção generosa para acompanhar seu almoço: mandioca macia por dentro e torresmo bem sequinho.',
-    imageUrl: marmitaTradicionalImg,
-    available: false,
+    imageUrl: mandiocaFritaImg,
+    available: true,
   },
   {
     id: 'prod-6',
@@ -98,7 +106,18 @@ export const INITIAL_PRODUCTS: Product[] = [
     price: 6.0,
     ingredients: 'Lata 350ml servida bem gelada.',
     description: 'Guaraná tradicional geladinho para acompanhar sua marmita.',
-    imageUrl: frangoGrelhadoImg,
+    imageUrl: guaranaLataImg,
+    available: true,
+  },
+  {
+    id: 'prod-8',
+    name: 'Suco Natural de Laranja 400ml',
+    category: 'Bebidas',
+    price: 9.9,
+    ingredients: 'Laranjas frescas selecionadas espremidas na hora, com gelo opcional.',
+    description:
+      'Suco 100% natural, refrescante e sem adição de conservantes, preparado na hora do pedido.',
+    imageUrl: sucoLaranjaImg,
     available: true,
   },
   {
@@ -110,6 +129,18 @@ export const INITIAL_PRODUCTS: Product[] = [
     description:
       'Sobremesa clássica da casa, lisinha e cremosa, finalizada com calda dourada de caramelo.',
     imageUrl: pudimCarameloImg,
+    available: true,
+  },
+  {
+    id: 'prod-9',
+    name: 'Brownie de Chocolate com Calda',
+    category: 'Sobremesas',
+    price: 14.9,
+    ingredients:
+      'Chocolate meio amargo, manteiga, ovos, farinha, nozes tostadas e ganache cremosa.',
+    description:
+      'Brownie artesanal macio por dentro e levemente crocante por fora, finalizado com calda de chocolate e nozes.',
+    imageUrl: brownieChocolateImg,
     available: true,
   },
 ];

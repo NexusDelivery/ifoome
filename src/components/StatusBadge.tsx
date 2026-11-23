@@ -8,11 +8,11 @@ interface StatusBadgeProps {
 }
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
-  Recebido: 'bg-[#FFF3E6] text-[#B54708] border-[#F47B35]/35',
-  'Em preparo': 'bg-[#FDECE9] text-[#B42318] border-[#FECDCA]',
-  'Saiu para entrega': 'bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]',
-  Concluído: 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]',
-  Cancelado: 'bg-[#F5F1ED] text-[#6E5D55] border-[#DDD2C6]',
+  Recebido: 'bg-amber-500/15 text-amber-300 border-amber-500/35',
+  'Em preparo': 'bg-orange-500/15 text-orange-300 border-orange-500/35',
+  'Saiu para entrega': 'bg-sky-500/15 text-sky-300 border-sky-500/35',
+  Concluído: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35',
+  Cancelado: 'bg-slate-800 text-slate-400 border-slate-700',
 };
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({

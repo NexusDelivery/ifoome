@@ -1,15 +1,26 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  ArrowRight,
+  CakeSlice,
+  CheckCircle2,
+  ChefHat,
   Clock,
+  CupSoda,
+  Flame,
   Lock,
   MapPin,
   Minus,
-  Phone,
   Plus,
   Search,
+  Shapes,
+  ShieldCheck,
   ShoppingBag,
+  Soup,
+  Star,
   Store,
   Trash2,
+  Utensils,
+  UtensilsCrossed,
   X,
 } from 'lucide-react';
 import {
@@ -22,7 +33,6 @@ import {
   Product,
   StoreSettings,
 } from '../../types';
-import { HERO_BANNER_IMAGE } from '../../data/mockData';
 import { formatCurrency } from '../../utils/format';
 import { BrandMark } from '../BrandMark';
 import { DishImage } from '../DishImage';
@@ -52,6 +62,25 @@ interface PublicMenuPageProps {
 
 type PublicView = 'menu' | 'checkout' | 'confirmation';
 
+const CATEGORY_ICONS: Record<'Todas' | Category, React.FC<{ className?: string }>> = {
+  Todas: Utensils,
+  Marmitas: Soup,
+  'Pratos Executivos': ChefHat,
+  Porções: Flame,
+  Bebidas: CupSoda,
+  Sobremesas: CakeSlice,
+};
+
+// Nota visual decorativa determinística (apenas estética, sem persistência no banco)
+function getVisualStarRating(productId: string): string {
+  let hash = 0;
+  for (let i = 0; i < productId.length; i += 1) {
+    hash = (hash * 31 + productId.charCodeAt(i)) % 5;
+  }
+  const ratings = ['4.8', '4.9', '5.0', '4.7', '4.9'];
+  return ratings[hash] ?? '4.9';
+}
+
 export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
   products,
   store,
@@ -67,6 +96,44 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
   const [dishQty, setDishQty] = useState(1);
   const [dishObs, setDishObs] = useState('');
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) {
+        window.clearTimeout(toastTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!cartOpen && !selectedDish) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setCartOpen(false);
+        setSelectedDish(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [cartOpen, selectedDish]);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    toastTimerRef.current = window.setTimeout(() => {
+      setToastMsg(null);
+    }, 2400);
+  };
 
   // Sincroniza itens da sacola com o catálogo vigente (preço e disponibilidade reais)
   const syncedCart = cart.map((item) => {
@@ -81,16 +148,23 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
   // RF-A07: O cardápio público exibe somente produtos disponíveis
   const availableProducts = products.filter((p) => p.available);
 
-  const visibleProducts = availableProducts.filter((p) => {
-    const matchesCat = selectedCategory === 'Todas' || p.category === selectedCategory;
-    const query = search.trim().toLowerCase();
-    const matchesSearch =
-      !query ||
-      p.name.toLowerCase().includes(query) ||
-      p.description.toLowerCase().includes(query) ||
-      p.ingredients.toLowerCase().includes(query);
-    return matchesCat && matchesSearch;
-  });
+  const visibleProducts = availableProducts
+    .filter((p) => {
+      const matchesCat = selectedCategory === 'Todas' || p.category === selectedCategory;
+      const query = search.trim().toLowerCase();
+      const matchesSearch =
+        !query ||
+        p.name.toLowerCase().includes(query) ||
+        p.description.toLowerCase().includes(query) ||
+        p.ingredients.toLowerCase().includes(query);
+      return matchesCat && matchesSearch;
+    })
+    .sort((a, b) => {
+      const idxA = CATEGORIES.indexOf(a.category);
+      const idxB = CATEGORIES.indexOf(b.category);
+      if (idxA !== idxB) return idxA - idxB;
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
 
   const totalCartItems = syncedCart.reduce((acc, item) => acc + item.quantity, 0);
   const cartSubtotal = syncedCart.reduce(
@@ -98,6 +172,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
     0
   );
   const hasUnavailableInCart = syncedCart.some((item) => item.isUnavailable);
+  const estimatedTotalWithDelivery = cartSubtotal + store.deliveryFee;
 
   const openDishModal = (product: Product) => {
     setSelectedDish(product);
@@ -123,6 +198,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
       }
       return [...prev, { product, quantity, observation: cleanObs }];
     });
+    showToast(`+${quantity} ${product.name} adicionado!`);
   };
 
   const updateCartItemQty = (index: number, delta: number) => {
@@ -137,6 +213,11 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
 
   const removeCartItem = (index: number) => {
     setCart((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const resetFilters = () => {
+    setSelectedCategory('Todas');
+    setSearch('');
   };
 
   const handleCheckoutSubmit = async (orderData: {
@@ -170,46 +251,97 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#FFF8EF] text-[#382B25] flex flex-col">
-      {/* Top Bar Contract (focado na experiência do cliente) */}
-      <header className="sticky top-0 z-30 h-14 sm:h-16 bg-[#FFFFFF]/95 backdrop-blur-md border-b border-[#EAE0D5]">
-        <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-8">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      {/* Header / Barra de Navegação Nexus */}
+      <header className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between gap-2 sm:gap-4">
           <button
             type="button"
             onClick={() => setView('menu')}
-            className="text-left focus-visible:outline-2 focus-visible:outline-[#F47B35] rounded-lg"
+            className="text-left focus-visible:outline-2 focus-visible:outline-orange-500 rounded-xl min-w-0 shrink"
           >
             <BrandMark logoUrl={store.logoUrl} alt={store.name} />
           </button>
 
-          <nav
-            className="hidden md:flex items-center gap-6 text-sm font-semibold text-[#6E5D55]"
-            aria-label="Navegação do cardápio"
-          >
-            <a
-              href="#cardapio"
-              onClick={() => setView('menu')}
-              className="hover:text-[#382B25] transition-colors whitespace-nowrap shrink-0"
-            >
-              Cardápio
-            </a>
-          </nav>
+          {/* Barra de Busca Centralizada (Desktop) */}
+          {view === 'menu' && (
+            <div className="flex-1 max-w-lg hidden md:block">
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400">
+                  <Search className="w-4 h-4" aria-hidden="true" />
+                </span>
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Pesquise por marmitas, pratos, bebidas..."
+                  aria-label="Buscar prato no cardápio"
+                  className="w-full bg-slate-800/80 text-sm text-slate-100 rounded-full pl-11 pr-10 py-3 border border-slate-700/80 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all placeholder:text-slate-500"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    aria-label="Limpar busca"
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
-          <div className="flex items-center gap-2.5 shrink-0">
+          {/* Ações do Topo: Localização & Carrinho */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <div className="hidden lg:flex items-center gap-2 bg-slate-800/60 px-3.5 py-2 rounded-xl border border-slate-700/50 text-xs text-slate-300">
+              <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" aria-hidden="true" />
+              <span className="truncate max-w-[170px]">{store.address}</span>
+            </div>
+
             <button
               type="button"
               onClick={() => setCartOpen(true)}
-              aria-label={`Abrir sacola com ${totalCartItems} itens`}
-              className="min-h-[40px] sm:min-h-[44px] px-3.5 sm:px-4 py-2 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] text-white text-xs sm:text-sm font-semibold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+              aria-label={`Abrir carrinho com ${totalCartItems} itens`}
+              className="relative min-h-[40px] sm:min-h-[44px] bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white font-semibold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl shadow-lg shadow-orange-500/25 flex items-center gap-2 sm:gap-2.5 active:scale-95 transition-all whitespace-nowrap shrink-0"
             >
               <ShoppingBag className="w-4 h-4 shrink-0" aria-hidden="true" />
-              <span>Sacola</span>
-              <span className="tabular-nums bg-[#FFF8EF] text-[#D94B3D] font-bold text-xs px-1.5 py-0.5 rounded-md">
+              <span className="hidden sm:inline text-sm">Carrinho</span>
+              <span className="bg-slate-950 text-orange-400 text-xs font-bold px-2 py-0.5 rounded-full border border-orange-500/30 tabular-nums">
                 {totalCartItems}
               </span>
             </button>
           </div>
         </div>
+
+        {/* Barra de busca para mobile */}
+        {view === 'menu' && (
+          <div className="p-3 border-t border-slate-800 md:hidden bg-slate-900/60">
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                <Search className="w-4 h-4" aria-hidden="true" />
+              </span>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="O que deseja pedir hoje?"
+                aria-label="Buscar prato no cardápio"
+                className="w-full bg-slate-800 text-xs text-slate-100 rounded-xl pl-9 pr-9 py-2.5 border border-slate-700 focus:outline-none focus:border-orange-500 placeholder:text-slate-500"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  aria-label="Limpar busca"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Roteamento Interno Público */}
@@ -240,205 +372,246 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
       )}
 
       {view === 'menu' && (
-        <main className="flex-1 pb-24 md:pb-12">
-          {/* Hero do Estabelecimento */}
-          <section className="max-w-6xl mx-auto px-4 sm:px-6 pt-5 sm:pt-7">
-            <div className="bg-[#FFFFFF] rounded-2xl sm:rounded-3xl border border-[#EAE0D5] overflow-hidden grid grid-cols-1 lg:grid-cols-12 items-stretch">
-              <div className="lg:col-span-7 p-5 sm:p-8 flex flex-col justify-between gap-5">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${
-                        store.isOpen
-                          ? 'bg-[#ECFDF3] text-[#027A48] border-[#A6F4C5]'
-                          : 'bg-[#FDECE9] text-[#B42318] border-[#FECDCA]'
-                      }`}
-                    >
-                      {store.isOpen ? (
-                        <Store className="w-3.5 h-3.5" aria-hidden="true" />
-                      ) : (
-                        <Lock className="w-3.5 h-3.5" aria-hidden="true" />
-                      )}
-                      <span>
-                        {store.isOpen ? 'Aberto para pedidos' : 'Fechado no momento'}
-                      </span>
-                    </span>
-                    <span className="text-[#6E5D55]">Cardápio digital · Sem cadastro</span>
-                  </div>
-
-                  <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-[#382B25] tracking-tight text-balance">
-                    {store.name}
-                  </h1>
-
-                  <p className="text-sm sm:text-base text-[#6E5D55] max-w-xl leading-relaxed">
-                    {store.subtitle}
-                  </p>
-                </div>
-
-                <div
-                  id="info-restaurante"
-                  className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-[#F2EAE0] text-xs sm:text-sm"
-                >
-                  <div className="flex items-center gap-2 text-[#57473F]">
-                    <Clock className="w-4 h-4 text-[#F47B35] shrink-0" aria-hidden="true" />
-                    <span>{store.openingHours}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[#57473F]">
-                    <MapPin className="w-4 h-4 text-[#F47B35] shrink-0" aria-hidden="true" />
-                    <span className="truncate">{store.address}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[#57473F] tabular-nums">
-                    <Phone className="w-4 h-4 text-[#F47B35] shrink-0" aria-hidden="true" />
+        <div className="flex-1 pb-24 md:pb-8 flex flex-col">
+          {/* Banner Hero Promocional */}
+          <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-2 w-full">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-900/80 via-slate-900 to-orange-950/80 border border-slate-800 p-6 sm:p-8 lg:p-10 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+              <div className="z-10 max-w-xl text-center md:text-left">
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-3">
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+                      store.isOpen
+                        ? 'bg-orange-500/20 text-orange-300 border-orange-500/30'
+                        : 'bg-red-500/20 text-red-300 border-red-500/30'
+                    }`}
+                  >
+                    {store.isOpen ? (
+                      <Flame className="w-3.5 h-3.5" aria-hidden="true" />
+                    ) : (
+                      <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+                    )}
                     <span>
-                      Entrega {store.deliveryEstimate} ·{' '}
-                      {store.deliveryFee === 0
-                        ? 'Grátis'
-                        : formatCurrency(store.deliveryFee)}
+                      {store.isOpen
+                        ? `Aberto agora · ${store.openingHours}`
+                        : `Fechado no momento · ${store.openingHours}`}
                     </span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-800/70 text-slate-300 border border-slate-700/70">
+                    <Store className="w-3.5 h-3.5 text-orange-400" aria-hidden="true" />
+                    <span>{store.name}</span>
+                  </span>
+                </div>
+
+                <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight sm:leading-[1.111] lg:leading-none text-white mb-2">
+                  Comida rápida, fresca e{' '}
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-300">
+                    surpreendente
+                  </span>
+                  .
+                </h1>
+
+                <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
+                  {store.subtitle}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-4 z-10 shrink-0">
+                <div className="text-center p-3 sm:p-4 rounded-2xl bg-slate-800/60 backdrop-blur border border-slate-700/60">
+                  <div className="text-orange-400 font-bold text-lg sm:text-xl">~25 min</div>
+                  <div className="text-slate-400 text-xs">Tempo médio</div>
+                </div>
+                <div
+                  className="text-center p-3.5 sm:p-4 rounded-2xl bg-slate-800/60 backdrop-blur border border-slate-700/60 min-w-[116px]"
+                  aria-label="Avaliação ilustrativa 4.9 estrelas"
+                >
+                  <div className="text-amber-400 font-bold text-lg sm:text-xl tabular-nums flex items-center justify-center gap-1">
+                    <span>4.9</span>
+                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" aria-hidden="true" />
                   </div>
+                  <div className="text-slate-400 text-xs">Qualidade Nexus</div>
                 </div>
               </div>
 
-              <div className="lg:col-span-5 relative min-h-[200px] sm:min-h-[240px]">
-                <img
-                  src={HERO_BANNER_IMAGE}
-                  alt={`Pratos caseiros preparados na ${store.name}`}
-                  referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
-                />
-                <div
-                  className="absolute inset-0 bg-gradient-to-t from-[#382B25]/45 via-transparent to-transparent lg:bg-gradient-to-r lg:from-[#FFFFFF]/15 lg:to-transparent"
-                  aria-hidden="true"
-                />
-              </div>
+              {/* Background Ambient Glow */}
+              <div
+                className="absolute -right-16 -top-16 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl pointer-events-none"
+                aria-hidden="true"
+              />
+              <div
+                className="absolute -left-16 -bottom-16 w-80 h-80 bg-purple-500/15 rounded-full blur-3xl pointer-events-none"
+                aria-hidden="true"
+              />
             </div>
           </section>
 
           {/* Aviso de Loja Fechada (RN-02) */}
           {!store.isOpen && (
-            <section className="max-w-6xl mx-auto px-4 sm:px-6 mt-5">
+            <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 w-full">
               <div
                 role="status"
-                className="flex items-start sm:items-center gap-3 px-4 py-3.5 rounded-2xl bg-[#FDECE9] border border-[#FECDCA] text-sm text-[#B42318]"
+                className="flex items-start sm:items-center gap-3 px-4 py-3.5 rounded-2xl bg-red-950/60 border border-red-500/40 text-sm text-red-200"
               >
-                <Lock className="w-5 h-5 shrink-0 mt-0.5 sm:mt-0" aria-hidden="true" />
+                <Lock className="w-5 h-5 shrink-0 mt-0.5 sm:mt-0 text-red-400" aria-hidden="true" />
                 <div>
-                  <strong>Estamos fechados no momento.</strong> Você pode consultar os pratos e preços abaixo, mas novos pedidos estão pausados até o próximo horário de atendimento ({store.openingHours}).
+                  <strong className="text-white">Estamos fechados no momento.</strong> Você pode consultar os pratos e preços abaixo, mas novos pedidos estão pausados até o próximo horário de atendimento ({store.openingHours}).
                 </div>
               </div>
             </section>
           )}
 
-          {/* Barra de Categorias e Busca */}
-          <section id="cardapio" className="max-w-6xl mx-auto px-4 sm:px-6 mt-6 sm:mt-8 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div
-                className="flex items-center gap-1.5 overflow-x-auto pb-1"
-                role="tablist"
-                aria-label="Categorias do cardápio"
-              >
-                {(['Todas', ...CATEGORIES] as const).map((cat) => {
-                  const isActive = selectedCategory === cat;
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      role="tab"
-                      aria-selected={isActive}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`min-h-[40px] px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0 transition-colors ${
-                        isActive
-                          ? 'bg-[#382B25] text-[#FFF8EF]'
-                          : 'bg-[#FFFFFF] border border-[#EAE0D5] text-[#6E5D55] hover:text-[#382B25]'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="relative w-full md:w-72 shrink-0">
-                <Search
-                  className="w-4 h-4 text-[#6E5D55] absolute left-3.5 top-1/2 -translate-y-1/2"
-                  aria-hidden="true"
-                />
-                <input
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Buscar marmita, bebida..."
-                  aria-label="Buscar prato no cardápio"
-                  className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl bg-[#FFFFFF] border border-[#DDD2C6] text-sm text-[#382B25] placeholder:text-[#8E7D74] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
-                />
-              </div>
+          {/* Filtros por Categoria */}
+          <section id="cardapio" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 w-full">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-slate-200 tracking-wide uppercase text-xs flex items-center gap-2">
+                <Shapes className="w-4 h-4 text-orange-500" aria-hidden="true" />
+                <span>Categorias</span>
+              </h2>
+              <span className="text-xs text-slate-400 font-medium tabular-nums">
+                {visibleProducts.length} {visibleProducts.length === 1 ? 'prato encontrado' : 'pratos encontrados'}
+              </span>
             </div>
 
-            {/* Grade de Produtos Disponíveis */}
+            <div
+              className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none"
+              role="tablist"
+              aria-label="Categorias do cardápio"
+            >
+              {(['Todas', ...CATEGORIES] as const).map((cat) => {
+                const isActive = selectedCategory === cat;
+                const Icon = CATEGORY_ICONS[cat];
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`min-h-[40px] flex items-center gap-2 px-4 py-2 rounded-xl text-xs whitespace-nowrap shrink-0 border transition-all duration-200 active:scale-95 ${
+                      isActive
+                        ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-lg shadow-orange-500/20 font-bold border-transparent'
+                        : 'bg-slate-800/90 text-slate-300 hover:text-white hover:bg-slate-800 border-slate-700/60 font-medium'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                    <span>{cat}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Grade de Cardápio / Pratos */}
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 w-full flex-1">
             {visibleProducts.length === 0 ? (
-              <div className="bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] p-8 text-center">
-                <p className="font-display font-bold text-base text-[#382B25]">
+              <div className="text-center py-20 px-4">
+                <div className="w-16 h-16 mx-auto rounded-full bg-slate-800 flex items-center justify-center text-slate-400 mb-4">
+                  <UtensilsCrossed className="w-7 h-7" aria-hidden="true" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-200 mb-1">
                   {availableProducts.length === 0
                     ? 'Cardápio em atualização no momento'
-                    : 'Nenhum prato disponível nessa busca'}
-                </p>
-                <p className="text-sm text-[#6E5D55] mt-1">
+                    : 'Nenhum prato encontrado'}
+                </h3>
+                <p className="text-slate-400 text-sm max-w-sm mx-auto mb-4">
                   {availableProducts.length === 0
                     ? 'Ainda não há pratos publicados como disponíveis. Volte em instantes ou acesse a área do estabelecimento para cadastrar o cardápio.'
-                    : 'Veja outras categorias acima para conferir os pratos do dia.'}
+                    : 'Não encontramos opções correspondentes à sua pesquisa. Tente usar outros termos ou categorias.'}
                 </p>
+                {availableProducts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="min-h-[40px] px-4 py-2 rounded-xl text-xs font-semibold bg-orange-500/10 text-orange-400 border border-orange-500/30 hover:bg-orange-500 hover:text-white transition-all"
+                  >
+                    Limpar Filtros
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {visibleProducts.map((product) => {
                   const qtyInCart = syncedCart
                     .filter((c) => c.product.id === product.id)
                     .reduce((acc, c) => acc + c.quantity, 0);
+                  const visualStars = getVisualStarRating(product.id);
 
                   return (
                     <article
                       key={product.id}
-                      className="group bg-[#FFFFFF] rounded-2xl border border-[#EAE0D5] overflow-hidden flex flex-col justify-between hover:-translate-y-0.5 transition-transform duration-200"
+                      className="group bg-slate-900 border border-slate-800/80 rounded-2xl overflow-hidden hover:border-slate-700 hover:shadow-2xl hover:shadow-orange-500/5 transition-all duration-300 flex flex-col justify-between"
                     >
-                      <button
-                        type="button"
-                        onClick={() => openDishModal(product)}
-                        className="text-left focus-visible:outline-2 focus-visible:outline-[#F47B35]"
-                      >
-                        <DishImage src={product.imageUrl} alt={product.name} />
-                        <div className="p-4 space-y-1.5">
-                          <div className="flex items-center gap-2 text-xs text-[#6E5D55]">
-                            <span>{product.category}</span>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => openDishModal(product)}
+                          className="w-full text-left focus-visible:outline-2 focus-visible:outline-orange-500 block"
+                        >
+                          {/* Imagem do Prato com Badges */}
+                          <div className="relative h-48 w-full overflow-hidden bg-slate-800">
+                            <DishImage
+                              src={product.imageUrl}
+                              alt={product.name}
+                              className="!aspect-auto h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                            <div
+                              className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20"
+                              aria-hidden="true"
+                            />
+
+                            {/* Avaliação Visual Decorativa */}
+                            <div
+                              className="absolute top-3 right-3 badge-blur bg-slate-900/80 border border-slate-700/60 rounded-lg px-2 py-1 flex items-center gap-1 text-xs text-amber-300 font-bold shadow-md tabular-nums"
+                              aria-hidden="true"
+                            >
+                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                              <span>{visualStars}</span>
+                            </div>
+
+                            {/* Tempo de Entrega */}
+                            <div className="absolute bottom-3 left-3 badge-blur bg-slate-950/80 border border-slate-700/60 text-slate-200 text-[11px] px-2.5 py-1 rounded-md flex items-center gap-1.5 font-medium tabular-nums">
+                              <Clock className="w-3 h-3 text-orange-400" aria-hidden="true" />
+                              <span>{store.deliveryEstimate}</span>
+                            </div>
+
                             {qtyInCart > 0 && (
-                              <>
-                                <span aria-hidden="true">·</span>
-                                <span className="font-semibold text-[#D94B3D] tabular-nums">
-                                  {qtyInCart} na sacola
-                                </span>
-                              </>
+                              <div className="absolute bottom-3 right-3 badge-blur bg-orange-500/90 text-white text-[11px] px-2 py-0.5 rounded-md font-bold tabular-nums shadow">
+                                {qtyInCart} no carrinho
+                              </div>
                             )}
                           </div>
-                          <h2 className="font-display font-bold text-lg text-[#382B25] leading-snug">
-                            {product.name}
-                          </h2>
-                          <p className="text-xs sm:text-sm text-[#6E5D55] line-clamp-2 leading-relaxed">
-                            {product.description || product.ingredients}
-                          </p>
+
+                          {/* Detalhes do Prato */}
+                          <div className="p-4">
+                            <span className="text-[11px] font-semibold uppercase tracking-wider text-orange-400/90 block mb-1">
+                              {product.category}
+                            </span>
+                            <h3 className="font-bold text-white text-base group-hover:text-orange-400 transition-colors line-clamp-1 mb-1">
+                              {product.name}
+                            </h3>
+                            <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed">
+                              {product.description || product.ingredients}
+                            </p>
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Preço e Botão Adicionar */}
+                      <div className="p-4 pt-3 flex items-center justify-between border-t border-slate-800/60 mt-auto">
+                        <div>
+                          <span className="text-[10px] text-slate-400 uppercase tracking-wider block font-semibold">
+                            A partir de
+                          </span>
+                          <span className="text-lg font-black text-white tracking-tight tabular-nums">
+                            {formatCurrency(product.price)}
+                          </span>
                         </div>
-                      </button>
-
-                      <div className="px-4 pb-4 pt-3 border-t border-[#F2EAE0] flex items-center justify-between gap-3">
-                        <span className="font-display font-extrabold text-lg text-[#382B25] tabular-nums">
-                          {formatCurrency(product.price)}
-                        </span>
-
                         <button
                           type="button"
                           disabled={!store.isOpen}
                           onClick={() => addToCart(product, 1)}
-                          className="min-h-[44px] px-4 py-2 rounded-xl bg-[#F47B35] hover:bg-[#E06822] disabled:bg-[#EAE0D5] disabled:text-[#8E7D74] text-white text-sm font-semibold inline-flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                          className="min-h-[40px] bg-orange-500 hover:bg-orange-600 disabled:bg-slate-800 disabled:text-slate-500 active:scale-95 text-white text-xs font-semibold px-3.5 py-2.5 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-orange-500/20 whitespace-nowrap"
                         >
-                          <Plus className="w-4 h-4" aria-hidden="true" />
+                          <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                           <span>Adicionar</span>
                         </button>
                       </div>
@@ -447,22 +620,27 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
                 })}
               </div>
             )}
-          </section>
-        </main>
+          </main>
+        </div>
       )}
 
-      {/* Rodapé com acesso discreto ao painel administrativo */}
-      <footer className="border-t border-[#EAE0D5] bg-[#FFFFFF] py-5 px-4 sm:px-6 text-xs text-[#6E5D55]">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>
-            {store.name} · Atendimento {store.openingHours}
-          </span>
+      {/* Rodapé Nexus com acesso discreto ao painel administrativo */}
+      <footer className="bg-slate-900 border-t border-slate-800 mt-auto py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded-lg bg-orange-500/20 text-orange-400 flex items-center justify-center font-bold text-xs">
+              N
+            </div>
+            <span>
+              <strong className="font-semibold text-slate-200">Nexus Delivery</strong> ·{' '}
+              {store.name} · {store.openingHours}
+            </span>
+          </div>
           <div className="flex items-center gap-4">
-            <span>iFoome Delivery</span>
             <button
               type="button"
               onClick={onSwitchToAdmin}
-              className="inline-flex items-center gap-1.5 text-[#8E7D74] hover:text-[#382B25] transition-colors py-1"
+              className="inline-flex items-center gap-1.5 text-slate-400 hover:text-orange-400 transition-colors py-1"
             >
               <Lock className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Área do estabelecimento</span>
@@ -471,74 +649,96 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
         </div>
       </footer>
 
-      {/* Barra inferior rápida do carrinho no celular (respeitando limite de 15%) */}
+      {/* Barra inferior rápida do carrinho no celular */}
       {view === 'menu' && totalCartItems > 0 && !cartOpen && !selectedDish && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 p-3 bg-[#FFF8EF]/95 backdrop-blur-md border-t border-[#EAE0D5]">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 px-3 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] bg-slate-950/95 backdrop-blur-md border-t border-slate-800">
           <button
             type="button"
             onClick={() => setCartOpen(true)}
-            className="w-full min-h-[48px] px-4 py-2.5 rounded-xl bg-[#D94B3D] text-white font-semibold text-sm flex items-center justify-between shadow-md"
+            className="w-full min-h-[48px] px-3.5 sm:px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 text-white font-semibold text-sm flex items-center justify-between gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.99] transition-transform"
           >
-            <span className="inline-flex items-center gap-2 tabular-nums">
-              <ShoppingBag className="w-4 h-4" aria-hidden="true" />
-              <span>
-                Ver Sacola ({totalCartItems}{' '}
+            <span className="inline-flex items-center gap-2 tabular-nums min-w-0">
+              <ShoppingBag className="w-4 h-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">
+                Ver Carrinho ({totalCartItems}{' '}
                 {totalCartItems === 1 ? 'item' : 'itens'})
               </span>
             </span>
-            <span className="font-display font-bold text-base tabular-nums">
+            <span className="font-display font-bold text-sm sm:text-base tabular-nums shrink-0">
               {formatCurrency(cartSubtotal)}
             </span>
           </button>
         </div>
       )}
 
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div
+          role="status"
+          className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white text-xs font-medium px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 whitespace-nowrap"
+        >
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden="true" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
+
       {/* Modal de Detalhes do Prato + Observação */}
       {selectedDish && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#382B25]/50 backdrop-blur-xs p-0 sm:p-4"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="dish-modal-title"
         >
-          <div className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-[#FFFFFF] rounded-t-3xl sm:rounded-2xl border border-[#EAE0D5] overflow-hidden shadow-xl">
+          <div className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto bg-slate-900 rounded-t-3xl sm:rounded-3xl border border-slate-700 overflow-hidden shadow-2xl">
             <div className="relative">
-              <DishImage src={selectedDish.imageUrl} alt={selectedDish.name} />
+              <DishImage
+                src={selectedDish.imageUrl}
+                alt={selectedDish.name}
+                className="h-56 w-full !aspect-auto"
+              />
               <button
                 type="button"
                 onClick={() => setSelectedDish(null)}
                 aria-label="Fechar detalhes do prato"
-                className="absolute top-3 right-3 min-w-[44px] min-h-[44px] rounded-full bg-[#FFFFFF]/95 text-[#382B25] shadow-md flex items-center justify-center hover:bg-[#FFFFFF]"
+                className="absolute top-3 right-3 min-w-[44px] min-h-[44px] rounded-full bg-slate-900/90 border border-slate-700 text-slate-200 shadow-lg flex items-center justify-center hover:bg-slate-800 hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
+              <div
+                className="absolute bottom-3 right-3 badge-blur bg-slate-900/85 border border-slate-700/70 rounded-lg px-2.5 py-1 flex items-center gap-1.5 text-xs text-amber-300 font-bold tabular-nums"
+                aria-hidden="true"
+              >
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                <span>{getVisualStarRating(selectedDish.id)}</span>
+              </div>
             </div>
 
             <div className="p-5 sm:p-6 space-y-4">
               <div>
-                <p className="text-xs font-medium text-[#6E5D55]">
+                <p className="text-xs font-semibold uppercase tracking-wider text-orange-400">
                   {selectedDish.category}
                 </p>
                 <h3
                   id="dish-modal-title"
-                  className="font-display font-bold text-xl text-[#382B25] mt-0.5"
+                  className="font-display font-bold text-xl text-white mt-0.5"
                 >
                   {selectedDish.name}
                 </h3>
-                <p className="font-display font-extrabold text-xl text-[#D94B3D] tabular-nums mt-1">
+                <p className="font-display font-extrabold text-xl text-orange-400 tabular-nums mt-1">
                   {formatCurrency(selectedDish.price)}
                 </p>
               </div>
 
               {selectedDish.description && (
-                <p className="text-sm text-[#57473F] leading-relaxed">
+                <p className="text-sm text-slate-300 leading-relaxed">
                   {selectedDish.description}
                 </p>
               )}
 
               {selectedDish.ingredients && (
-                <div className="px-3.5 py-2.5 rounded-xl bg-[#FFF8EF] border border-[#EAE0D5] text-xs text-[#57473F]">
-                  <strong className="text-[#382B25]">Ingredientes: </strong>
+                <div className="px-3.5 py-2.5 rounded-xl bg-slate-800/70 border border-slate-700/70 text-xs text-slate-300">
+                  <strong className="text-white">Ingredientes: </strong>
                   {selectedDish.ingredients}
                 </div>
               )}
@@ -546,7 +746,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
               <div>
                 <label
                   htmlFor="dish-obs-input"
-                  className="block text-xs font-semibold text-[#382B25] mb-1.5"
+                  className="block text-xs font-semibold text-slate-200 mb-1.5"
                 >
                   Alguma observação? (opcional)
                 </label>
@@ -556,28 +756,28 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
                   value={dishObs}
                   onChange={(e) => setDishObs(e.target.value)}
                   placeholder="Ex.: Sem cebola, pouco arroz, feijão separado..."
-                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl border border-[#DDD2C6] text-sm text-[#382B25] focus:outline-none focus:ring-2 focus:ring-[#F47B35]"
+                  className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
                 />
               </div>
 
               <div className="pt-2 flex items-center gap-3">
-                <div className="flex items-center border border-[#DDD2C6] rounded-xl bg-[#FFF8EF]">
+                <div className="flex items-center border border-slate-700 rounded-xl bg-slate-800">
                   <button
                     type="button"
                     onClick={() => setDishQty((q) => Math.max(1, q - 1))}
                     aria-label="Diminuir quantidade"
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#382B25]"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-200 hover:text-white"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span className="w-8 text-center font-bold text-sm tabular-nums">
+                  <span className="w-8 text-center font-bold text-sm text-white tabular-nums">
                     {dishQty}
                   </span>
                   <button
                     type="button"
                     onClick={() => setDishQty((q) => q + 1)}
                     aria-label="Aumentar quantidade"
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-[#382B25]"
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-200 hover:text-white"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -590,9 +790,9 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
                     addToCart(selectedDish, dishQty, dishObs);
                     setSelectedDish(null);
                   }}
-                  className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] disabled:bg-[#DDD2C6] disabled:text-[#6E5D55] text-white text-sm font-semibold flex items-center justify-between gap-2 transition-colors"
+                  className="flex-1 min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white text-sm font-bold flex items-center justify-between gap-2 transition-all shadow-lg shadow-orange-500/20"
                 >
-                  <span>{store.isOpen ? 'Adicionar à Sacola' : 'Loja Fechada'}</span>
+                  <span>{store.isOpen ? 'Adicionar ao Carrinho' : 'Loja Fechada'}</span>
                   <span className="tabular-nums">
                     {formatCurrency(selectedDish.price * dishQty)}
                   </span>
@@ -603,145 +803,194 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
         </div>
       )}
 
-      {/* Drawer / Sheet da Sacola */}
+      {/* Drawer Lateral do Carrinho */}
       {cartOpen && (
         <div
-          className="fixed inset-0 z-50 flex justify-end bg-[#382B25]/50 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex justify-end"
           role="dialog"
           aria-modal="true"
           aria-labelledby="cart-drawer-title"
         >
-          <div className="w-full sm:max-w-md h-full bg-[#FFFFFF] flex flex-col justify-between shadow-2xl border-l border-[#EAE0D5]">
-            <div className="px-5 py-4 border-b border-[#EAE0D5] flex items-center justify-between gap-3">
-              <div>
-                <h2
-                  id="cart-drawer-title"
-                  className="font-display font-bold text-xl text-[#382B25]"
-                >
-                  Sua Sacola
-                </h2>
-                <p className="text-xs text-[#6E5D55] tabular-nums">
-                  {totalCartItems} {totalCartItems === 1 ? 'item selecionado' : 'itens selecionados'}
-                </p>
+          <div
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm cursor-pointer"
+            onClick={() => setCartOpen(false)}
+          />
+
+          <div className="relative w-full sm:max-w-md h-[100dvh] max-h-[100dvh] bg-slate-900 sm:border-l border-slate-800 shadow-2xl flex flex-col">
+            {/* Cabeçalho do Carrinho */}
+            <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-900/90 shrink-0">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
+                  <ShoppingBag className="w-5 h-5" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <h2
+                    id="cart-drawer-title"
+                    className="font-bold text-white text-base truncate"
+                  >
+                    Seu Pedido
+                  </h2>
+                  <p className="text-xs text-slate-400 tabular-nums">
+                    {totalCartItems} {totalCartItems === 1 ? 'item selecionado' : 'itens selecionados'}
+                  </p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setCartOpen(false)}
-                aria-label="Fechar sacola"
-                className="min-w-[44px] min-h-[44px] -mr-2 rounded-xl flex items-center justify-center text-[#6E5D55] hover:bg-[#F7EFE5]"
+                aria-label="Fechar carrinho"
+                className="w-10 h-10 rounded-xl bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 flex items-center justify-center transition-colors shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5">
+            {/* Lista de Itens do Carrinho */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3.5 sm:p-5 space-y-3 sm:space-y-4">
               {syncedCart.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center py-12 space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-[#FFF3E6] text-[#F47B35] flex items-center justify-center">
+                <div className="h-full min-h-[220px] flex flex-col items-center justify-center text-center p-6 text-slate-500">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-800/50 flex items-center justify-center text-slate-500 mb-3">
                     <ShoppingBag className="w-7 h-7" aria-hidden="true" />
                   </div>
-                  <p className="font-display font-bold text-base text-[#382B25]">
-                    Sua sacola está vazia
+                  <p className="font-semibold text-slate-300 text-sm">
+                    Seu carrinho está vazio
                   </p>
-                  <p className="text-sm text-[#6E5D55] max-w-xs">
-                    Escolha suas marmitas, bebidas ou sobremesas no cardápio para montar seu pedido.
+                  <p className="text-xs text-slate-400 mt-1 max-w-[220px]">
+                    Adicione pratos deliciosos ao seu pedido para começar.
                   </p>
                 </div>
               ) : (
-                <ul className="divide-y divide-[#F2EAE0]">
-                  {syncedCart.map((item, idx) => (
-                    <li key={`${item.product.id}-${idx}`} className="py-4 space-y-2.5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-sm text-[#382B25]">
+                syncedCart.map((item, idx) => (
+                  <div
+                    key={`${item.product.id}-${idx}`}
+                    className="bg-slate-800/50 p-3 sm:p-3.5 rounded-2xl border border-slate-700/50 space-y-2.5"
+                  >
+                    <div className="flex items-start gap-3">
+                      <DishImage
+                        src={item.product.imageUrl}
+                        alt={item.product.name}
+                        className="w-14 h-14 sm:w-16 sm:h-16 !aspect-square rounded-xl shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-sm font-bold text-white leading-snug line-clamp-2">
                             {item.product.name}
-                          </p>
-                          {item.isUnavailable && (
-                            <p className="text-xs font-semibold text-[#B42318] mt-0.5">
-                              Item indisponível no momento — remova para finalizar.
-                            </p>
-                          )}
-                          {item.observation && (
-                            <p className="text-xs text-[#6E5D55] mt-0.5">
-                              Obs: {item.observation}
-                            </p>
-                          )}
-                          <p className="text-xs text-[#6E5D55] tabular-nums mt-0.5">
-                            {formatCurrency(item.product.price)} cada
-                          </p>
-                        </div>
-                        <span className="font-display font-bold text-sm text-[#382B25] tabular-nums shrink-0">
-                          {formatCurrency(item.product.price * item.quantity)}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center border border-[#DDD2C6] rounded-xl bg-[#FFF8EF]">
-                          <button
-                            type="button"
-                            onClick={() => updateCartItemQty(idx, -1)}
-                            aria-label={`Diminuir ${item.product.name}`}
-                            className="min-w-[40px] min-h-[40px] flex items-center justify-center text-[#382B25]"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="w-8 text-center text-xs font-bold tabular-nums">
-                            {item.quantity}
+                          </h4>
+                          <span className="text-xs sm:text-sm text-orange-400 font-bold tabular-nums shrink-0">
+                            {formatCurrency(item.product.price * item.quantity)}
                           </span>
-                          <button
-                            type="button"
-                            onClick={() => updateCartItemQty(idx, 1)}
-                            aria-label={`Aumentar ${item.product.name}`}
-                            className="min-w-[40px] min-h-[40px] flex items-center justify-center text-[#382B25]"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
                         </div>
+                        {item.observation && (
+                          <p className="text-[11px] text-slate-400 mt-1 line-clamp-2 break-words">
+                            Obs: {item.observation}
+                          </p>
+                        )}
+                        {item.isUnavailable && (
+                          <p className="text-[11px] font-semibold text-red-400 mt-1">
+                            Item indisponível — remova para finalizar.
+                          </p>
+                        )}
+                      </div>
+                    </div>
 
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-700/40">
+                      <div className="flex items-center gap-3 text-[11px] text-slate-400">
+                        <span className="tabular-nums">
+                          {formatCurrency(item.product.price)} cada
+                        </span>
                         <button
                           type="button"
                           onClick={() => removeCartItem(idx)}
                           aria-label={`Remover ${item.product.name}`}
-                          className="min-h-[40px] px-2.5 rounded-xl text-xs font-semibold text-[#B42318] hover:bg-[#FDECE9] flex items-center gap-1"
+                          className="min-h-[32px] px-1.5 text-red-400 hover:text-red-300 font-semibold inline-flex items-center gap-1 rounded-lg hover:bg-red-500/10 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                           <span>Remover</span>
                         </button>
                       </div>
-                    </li>
-                  ))}
-                </ul>
+
+                      <div className="flex items-center gap-1 bg-slate-900 border border-slate-700 px-1 py-0.5 rounded-xl shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => updateCartItemQty(idx, -1)}
+                          aria-label={`Diminuir ${item.product.name}`}
+                          className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="min-w-[24px] text-center text-xs font-bold text-white tabular-nums">
+                          {item.quantity}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => updateCartItemQty(idx, 1)}
+                          aria-label={`Aumentar ${item.product.name}`}
+                          className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
 
-            {syncedCart.length > 0 && (
-              <div className="p-5 border-t border-[#EAE0D5] bg-[#FFF8EF] space-y-3">
-                <div className="flex justify-between items-center text-sm text-[#6E5D55]">
-                  <span>Subtotal dos itens</span>
-                  <span className="font-display font-bold text-lg text-[#382B25] tabular-nums">
+            {/* Rodapé / Resumo financeiro do Carrinho */}
+            <div className="p-4 sm:p-5 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-slate-800 bg-slate-900/95 space-y-3 shrink-0">
+              <div className="space-y-1.5 text-xs text-slate-400">
+                <div className="flex justify-between gap-2">
+                  <span>Subtotal</span>
+                  <span className="font-semibold text-slate-200 tabular-nums">
                     {formatCurrency(cartSubtotal)}
                   </span>
                 </div>
-                <p className="text-xs text-[#6E5D55]">
-                  Entrega ({store.deliveryFee === 0 ? 'Grátis' : formatCurrency(store.deliveryFee)}) ou retirada gratuita serão escolhidas no próximo passo.
-                </p>
-                <button
-                  type="button"
-                  disabled={!store.isOpen || hasUnavailableInCart}
-                  onClick={() => {
-                    setCartOpen(false);
-                    setView('checkout');
-                  }}
-                  className="w-full min-h-[48px] px-5 py-3 rounded-xl bg-[#D94B3D] hover:bg-[#C03B2E] disabled:bg-[#DDD2C6] disabled:text-[#6E5D55] text-white font-semibold text-base transition-colors"
-                >
+                <div className="flex justify-between gap-2">
+                  <span>Taxa de Entrega (estimada)</span>
+                  <span className="font-semibold text-emerald-400 tabular-nums">
+                    {store.deliveryFee === 0
+                      ? 'Grátis'
+                      : formatCurrency(store.deliveryFee)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2 pt-2 border-t border-slate-800 text-sm font-bold text-white">
+                  <span>Total (com entrega)</span>
+                  <span className="text-orange-400 text-base tabular-nums">
+                    {syncedCart.length === 0
+                      ? formatCurrency(0)
+                      : formatCurrency(estimatedTotalWithDelivery)}
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                disabled={
+                  syncedCart.length === 0 || !store.isOpen || hasUnavailableInCart
+                }
+                onClick={() => {
+                  setCartOpen(false);
+                  setView('checkout');
+                }}
+                className="w-full min-h-[46px] py-3 px-4 rounded-xl font-bold text-sm bg-gradient-to-r from-orange-500 to-amber-600 hover:from-orange-600 hover:to-amber-700 text-white shadow-lg shadow-orange-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <span>
                   {!store.isOpen
                     ? 'Restaurante Fechado'
                     : hasUnavailableInCart
                       ? 'Remova itens indisponíveis'
-                      : 'Ir para Finalização'}
-                </button>
-              </div>
-            )}
+                      : 'Confirmar e Pedir'}
+                </span>
+                {store.isOpen && !hasUnavailableInCart && (
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                )}
+              </button>
+
+              <p className="text-[11px] text-center text-slate-500 flex items-center justify-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" aria-hidden="true" />
+                <span>Escolha entrega ou retirada gratuita na próxima etapa</span>
+              </p>
+            </div>
           </div>
         </div>
       )}

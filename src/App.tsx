@@ -47,6 +47,9 @@ function AppContent() {
 
   // Assinaturas públicas em tempo real (não requerem login)
   useEffect(() => {
+    void dataStore.syncCatalogCategoriesAndCoverage().catch((err) => {
+      console.warn('Não foi possível sincronizar categorias do cardápio:', err);
+    });
     const unsubStore = dataStore.subscribeStore(
       (nextStore) => setStore(nextStore),
       (err) => setSyncError(err)
