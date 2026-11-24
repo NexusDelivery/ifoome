@@ -688,11 +688,17 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
         destructive
         onCancel={() => setConfirmResetOpen(false)}
         onConfirm={() => {
-          void onResetDemoData().then(() => {
-            setConfirmResetOpen(false);
-            setSavedNotice('Cardápio e loja de demonstração restaurados no Firebase.');
-            window.setTimeout(() => setSavedNotice(null), 3500);
-          });
+          setErrorMsg(null);
+          void onResetDemoData()
+            .then(() => {
+              setConfirmResetOpen(false);
+              setSavedNotice('Cardápio e loja de demonstração restaurados no Firebase.');
+              window.setTimeout(() => setSavedNotice(null), 3500);
+            })
+            .catch(() => {
+              setConfirmResetOpen(false);
+              setErrorMsg('Não foi possível restaurar o cardápio no Firebase.');
+            });
         }}
       />
     </div>

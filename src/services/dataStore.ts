@@ -1,6 +1,7 @@
 import {
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -576,10 +577,34 @@ export const dataStore = {
 
   async resetDemoMenuAndStore(currentProducts: Product[]): Promise<void> {
     try {
-      const batch = writeBatch(db);
       const restaurantRef = doc(db, 'restaurants', RESTAURANT_DOC_ID);
-      batch.set(restaurantRef, {
-        id: RESTAURANT_DOC_ID,
+      const [restaurantSnap, productsSnap] = await Promise.all([
+        getDoc(restaurantRef),
+        getDocs(query(collection(db, 'products'), limit(200))),
+      ]);
+
+      const previousLogoStoragePath =
+        restaurantSnap.exists() &&
+        typeof restaurantSnap.data()?.logoStoragePath === 'string'
+          ? restaurantSnap.data()?.logoStoragePath
+          : undefined;
+
+      const existingIds = new Set(productsSnap.docs.map((d) => d.id));
+      const storagePathsToDelete = new Set<string>();
+      for (const productDoc of productsSnap.docs) {
+        const pPath = productDoc.data()?.imageStoragePath;
+        if (typeof pPath === 'string' && pPath) {
+          storagePathsToDelete.add(pPath);
+        }
+      }
+      for (const existingProduct of currentProducts) {
+        if (existingProduct.imageStoragePath) {
+          storagePathsToDelete.add(existingProduct.imageStoragePath);
+        }
+      }
+
+      const batch = writeBatch(db);
+      const restaurantBase = {
         name: INITIAL_STORE_SETTINGS.name,
         subtitle: INITIAL_STORE_SETTINGS.subtitle,
         logoUrl: '',
@@ -591,18 +616,30 @@ export const dataStore = {
         paymentMethods: INITIAL_STORE_SETTINGS.paymentMethods,
         isOpen: INITIAL_STORE_SETTINGS.isOpen,
         updatedAt: serverTimestamp(),
-      });
+      };
+
+      if (restaurantSnap.exists()) {
+        batch.update(restaurantRef, {
+          ...restaurantBase,
+          logoStoragePath: deleteField(),
+        });
+      } else {
+        batch.set(restaurantRef, {
+          id: RESTAURANT_DOC_ID,
+          ...restaurantBase,
+        });
+      }
 
       const initialIds = new Set(INITIAL_PRODUCTS.map((p) => p.id));
-      for (const existingProduct of currentProducts) {
-        if (!initialIds.has(existingProduct.id)) {
-          batch.delete(doc(db, 'products', existingProduct.id));
+      for (const existingId of existingIds) {
+        if (!initialIds.has(existingId)) {
+          batch.delete(doc(db, 'products', existingId));
         }
       }
 
       for (const product of INITIAL_PRODUCTS) {
-        batch.set(doc(db, 'products', product.id), {
-          id: product.id,
+        const productRef = doc(db, 'products', product.id);
+        const productFields = {
           name: product.name,
           category: product.category,
           price: product.price,
@@ -610,17 +647,30 @@ export const dataStore = {
           description: product.description,
           imageUrl: product.imageUrl,
           available: product.available,
-          createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        });
+        };
+
+        if (existingIds.has(product.id)) {
+          batch.update(productRef, {
+            ...productFields,
+            imageStoragePath: deleteField(),
+          });
+        } else {
+          batch.set(productRef, {
+            id: product.id,
+            ...productFields,
+            createdAt: serverTimestamp(),
+          });
+        }
       }
 
       await batch.commit();
 
-      for (const existingProduct of currentProducts) {
-        if (existingProduct.imageStoragePath) {
-          await deleteStorageFileIfManaged(existingProduct.imageStoragePath);
-        }
+      if (previousLogoStoragePath) {
+        await deleteStorageFileIfManaged(previousLogoStoragePath);
+      }
+      for (const storagePath of storagePathsToDelete) {
+        await deleteStorageFileIfManaged(storagePath);
       }
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'restaurants/default');

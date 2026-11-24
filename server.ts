@@ -3,7 +3,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { GoogleGenAI, ThinkingLevel } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -59,16 +59,6 @@ async function startServer() {
     }
 
     try {
-      const ai = new GoogleGenAI({
-        apiKey,
-        httpOptions: {
-          timeout: 12000,
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-
       const prompt = [
         `Prato: ${dishName}`,
         category ? `Categoria: ${category}` : '',
@@ -77,21 +67,77 @@ async function startServer() {
         .filter(Boolean)
         .join('\n');
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-4-hydrogen',
-        contents: prompt,
-        config: {
-          systemInstruction:
-            'Você é um assistente de cardápio para uma marmitaria brasileira acolhedora. Escreva apenas UMA descrição comercial curta (1 a 2 frases, no máximo 220 caracteres), em português brasileiro natural, apetitosa, simples e honesta, destacando apenas os ingredientes informados. Não invente ingredientes novos, não use emojis, não use aspas e não inclua preços.',
-          thinkingConfig: {
-            thinkingLevel: ThinkingLevel.LOW,
-          },
-        },
-      });
+      const systemInstruction =
+        'Você é um assistente de cardápio para uma marmitaria brasileira acolhedora. Escreva apenas UMA descrição comercial curta (1 a 2 frases, no máximo 220 caracteres), em português brasileiro natural, apetitosa, simples e honesta, destacando apenas os ingredientes informados. Não invente ingredientes novos, não use emojis, não use aspas e não inclua preços.';
 
-      const description = response.text?.trim().replace(/^["']|["']$/g, '') ?? '';
+      const attempts: Array<{
+        model: string;
+        timeoutMs: number;
+      }> = [
+        {
+          model: 'gemini-4-hydrogen',
+          timeoutMs: 10000,
+        },
+        {
+          model: 'gemini-3.1-flash-lite',
+          timeoutMs: 12000,
+        },
+      ];
+
+      let description = '';
+      let lastError: unknown = null;
+
+      for (let i = 0; i < attempts.length; i += 1) {
+        const { model, timeoutMs } = attempts[i];
+        const ai = new GoogleGenAI({
+          apiKey,
+          httpOptions: {
+            timeout: timeoutMs,
+            headers: {
+              'User-Agent': 'aistudio-build',
+            },
+          },
+        });
+
+        try {
+          const response = await ai.models.generateContent({
+            model,
+            contents: prompt,
+            config: {
+              systemInstruction,
+            },
+          });
+          description = response.text?.trim().replace(/^["']|["']$/g, '') ?? '';
+          if (description) {
+            break;
+          }
+        } catch (attemptErr: unknown) {
+          lastError = attemptErr;
+          const errMsg =
+            attemptErr instanceof Error ? attemptErr.message : String(attemptErr);
+          const errStatus =
+            typeof (attemptErr as { status?: unknown })?.status === 'number'
+              ? (attemptErr as { status: number }).status
+              : 500;
+
+          const isAuthFailure =
+            errStatus === 401 ||
+            errStatus === 403 ||
+            errMsg.includes('API_KEY') ||
+            errMsg.toLowerCase().includes('api key');
+
+          if (isAuthFailure || i === attempts.length - 1) {
+            throw attemptErr;
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 400));
+        }
+      }
 
       if (!description) {
+        if (lastError) {
+          throw lastError;
+        }
         res.status(502).json({
           error:
             'Não foi possível gerar uma sugestão agora. Tente novamente ou preencha manualmente.',
@@ -105,15 +151,36 @@ async function startServer() {
         err instanceof Error ? err.message : 'Erro desconhecido ao consultar IA.';
       const status =
         typeof (err as { status?: unknown })?.status === 'number'
-          ? ((err as { status: number }).status)
+          ? (err as { status: number }).status
           : 500;
 
-      console.error('[AI describe-dish error]', status, message);
+      console.warn('[AI describe-dish]', status, message);
 
-      if (status === 400 || status === 403 || message.includes('API_KEY')) {
+      if (
+        status === 401 ||
+        status === 403 ||
+        message.includes('API_KEY') ||
+        message.toLowerCase().includes('api key')
+      ) {
         res.status(502).json({
           error:
             'A chave da API de IA configurada no servidor foi recusada. Verifique as configurações no painel Secrets ou escreva a descrição manualmente.',
+        });
+        return;
+      }
+
+      if (status === 400) {
+        res.status(400).json({
+          error:
+            'Não foi possível processar o pedido para a IA agora. Tente novamente ou escreva a descrição manualmente.',
+        });
+        return;
+      }
+
+      if (status === 404) {
+        res.status(502).json({
+          error:
+            'O modelo de IA configurado não foi encontrado ou não está liberado para esta chave.',
         });
         return;
       }
@@ -126,7 +193,19 @@ async function startServer() {
         return;
       }
 
-      if (message.toLowerCase().includes('timeout') || message.toLowerCase().includes('aborted')) {
+      if (status === 503) {
+        res.status(503).json({
+          error:
+            'Serviço de IA temporariamente sobrecarregado. Tente novamente em instantes ou preencha manualmente.',
+        });
+        return;
+      }
+
+      if (
+        status === 504 ||
+        message.toLowerCase().includes('timeout') ||
+        message.toLowerCase().includes('aborted')
+      ) {
         res.status(504).json({
           error:
             'O assistente de IA demorou para responder. Tente novamente ou preencha a descrição manualmente.',
@@ -135,8 +214,7 @@ async function startServer() {
       }
 
       res.status(500).json({
-        error:
-          'Falha de comunicação com o assistente de IA. Você pode tentar novamente ou digitar a descrição manualmente.',
+        error: `Falha de comunicação com o assistente de IA (código ${status}). Você pode tentar novamente ou digitar a descrição manualmente.`,
       });
     }
   });
