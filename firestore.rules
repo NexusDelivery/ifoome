@@ -7,7 +7,10 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string &&
+        id.size() >= 1 &&
+        id.size() <= 128 &&
+        id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
     function incoming() {
@@ -16,6 +19,29 @@ service cloud.firestore {
 
     function existing() {
       return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedOwner() {
+      return isSignedIn() &&
+        request.auth.token.email == 'marxiosmagal@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isVerifiedOwner() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin' &&
+        (
+          !exists(/databases/$(database)/documents/adminSecurity/meta) ||
+          get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.version ==
+            get(/databases/$(database)/documents/adminSecurity/meta).data.version
+        )
+      );
     }
 
     function isBoundedQuery() {
@@ -163,7 +189,20 @@ service cloud.firestore {
         data.keys().hasOnly(['passwordHash', 'version', 'updatedBy', 'updatedAt']) &&
         data.passwordHash is string && data.passwordHash.size() >= 64 && data.passwordHash.size() <= 128 &&
         data.version is number && data.version >= 1 &&
-        (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy.size() <= 128)) &&
+        (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy == request.auth.uid && data.updatedBy.size() <= 128)) &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminMember(data, adminId) {
+      return data.keys().hasAll(['uid', 'email', 'role', 'passwordHash', 'version', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'role', 'passwordHash', 'version', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid == adminId && data.uid == request.auth.uid &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        (!('email' in request.auth.token) || data.email == request.auth.token.email) &&
+        data.role is string && data.role == 'admin' &&
+        data.passwordHash is string && data.passwordHash.size() >= 64 && data.passwordHash.size() <= 128 &&
+        data.version is number && data.version >= 1 &&
+        data.createdAt is timestamp &&
         data.updatedAt is timestamp;
     }
 
@@ -177,10 +216,12 @@ service cloud.firestore {
       allow list: if false;
       allow create: if isValidId(restaurantId) &&
         restaurantId == 'default' &&
+        isAdmin() &&
         isValidRestaurant(incoming()) &&
         incoming().updatedAt == request.time;
       allow update: if isValidId(restaurantId) &&
         restaurantId == 'default' &&
+        isAdmin() &&
         isValidRestaurant(incoming()) &&
         incoming().id == existing().id &&
         incoming().updatedAt == request.time &&
@@ -193,13 +234,15 @@ service cloud.firestore {
     }
 
     match /products/{productId} {
-      allow get: if isValidId(productId);
-      allow list: if isBoundedQuery();
+      allow get: if isValidId(productId) && (existing().available == true || isAdmin());
+      allow list: if isBoundedQuery() && (resource.data.available == true || isAdmin());
       allow create: if isValidId(productId) &&
+        isAdmin() &&
         isValidProduct(incoming(), productId) &&
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
       allow update: if isValidId(productId) &&
+        isAdmin() &&
         isValidProduct(incoming(), productId) &&
         incoming().id == existing().id &&
         incoming().createdAt == existing().createdAt &&
@@ -208,19 +251,27 @@ service cloud.firestore {
           'name', 'category', 'price', 'ingredients', 'description',
           'imageUrl', 'imageStoragePath', 'available', 'updatedAt'
         ]);
-      allow delete: if isValidId(productId);
+      allow delete: if isValidId(productId) && isAdmin();
     }
 
     match /orders/{orderId} {
-      allow get: if isValidId(orderId);
-      allow list: if isBoundedQuery();
+      allow get: if isValidId(orderId) && isAdmin();
+      allow list: if isBoundedQuery() && isAdmin();
       allow create: if isValidId(orderId) &&
         isValidOrderCreate(incoming(), orderId) &&
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time &&
-        existsAfter(/databases/$(database)/documents/restaurants/default) &&
-        getAfter(/databases/$(database)/documents/restaurants/default).data.isOpen == true;
+        (
+          isAdmin() ||
+          (
+            incoming().status == 'Recebido' &&
+            (!('isDemo' in incoming()) || incoming().isDemo == false) &&
+            existsAfter(/databases/$(database)/documents/restaurants/default) &&
+            getAfter(/databases/$(database)/documents/restaurants/default).data.isOpen == true
+          )
+        );
       allow update: if isValidId(orderId) &&
+        isAdmin() &&
         isValidOrderUpdate(incoming(), existing(), orderId) &&
         incoming().updatedAt == request.time &&
         incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
@@ -228,15 +279,29 @@ service cloud.firestore {
     }
 
     match /adminSecurity/{docId} {
-      allow get: if isValidId(docId) && docId in ['meta', 'config'];
+      allow get: if isValidId(docId) && (
+        (docId == 'meta' && isSignedIn()) ||
+        (docId == 'config' && isAdmin())
+      );
       allow list: if false;
       allow create: if isValidId(docId) &&
+        isSignedIn() &&
+        incoming().updatedAt == request.time &&
         (
-          (docId == 'meta' && isValidAdminMeta(incoming())) ||
-          (docId == 'config' && isValidAdminConfig(incoming()))
-        ) &&
-        incoming().updatedAt == request.time;
+          (
+            docId == 'meta' &&
+            isValidAdminMeta(incoming()) &&
+            (isVerifiedOwner() || !exists(/databases/$(database)/documents/adminSecurity/meta))
+          ) ||
+          (
+            docId == 'config' &&
+            isValidAdminConfig(incoming()) &&
+            (isVerifiedOwner() || !exists(/databases/$(database)/documents/adminSecurity/config))
+          )
+        );
       allow update: if isValidId(docId) &&
+        isAdmin() &&
+        incoming().updatedAt == request.time &&
         (
           (
             docId == 'meta' &&
@@ -248,13 +313,47 @@ service cloud.firestore {
             isValidAdminConfig(incoming()) &&
             incoming().version == existing().version + 1
           )
-        ) &&
-        incoming().updatedAt == request.time;
+        );
       allow delete: if false;
     }
 
     match /admins/{adminId} {
-      allow read, write: if false;
+      allow get: if isSignedIn() &&
+        isValidId(adminId) &&
+        (request.auth.uid == adminId || isAdmin());
+      allow list: if false;
+      allow create: if isSignedIn() &&
+        isValidId(adminId) &&
+        adminId == request.auth.uid &&
+        isValidAdminMember(incoming(), adminId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          isVerifiedOwner() ||
+          (
+            exists(/databases/$(database)/documents/adminSecurity/config) &&
+            exists(/databases/$(database)/documents/adminSecurity/meta) &&
+            incoming().passwordHash == get(/databases/$(database)/documents/adminSecurity/config).data.passwordHash &&
+            incoming().version == get(/databases/$(database)/documents/adminSecurity/meta).data.version
+          )
+        );
+      allow update: if isSignedIn() &&
+        isValidId(adminId) &&
+        adminId == request.auth.uid &&
+        isValidAdminMember(incoming(), adminId) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isVerifiedOwner() ||
+          (
+            exists(/databases/$(database)/documents/adminSecurity/config) &&
+            exists(/databases/$(database)/documents/adminSecurity/meta) &&
+            incoming().passwordHash == get(/databases/$(database)/documents/adminSecurity/config).data.passwordHash &&
+            incoming().version == get(/databases/$(database)/documents/adminSecurity/meta).data.version
+          )
+        );
+      allow delete: if isAdmin();
     }
   }
 }

@@ -8,6 +8,9 @@ import sucoLaranjaImg from '../assets/images/dish_suco_laranja_1794872873636.jpg
 import brownieChocolateImg from '../assets/images/dish_brownie_chocolate_1795390815351.jpg';
 import mandiocaFritaImg from '../assets/images/dish_mandioca_frita_1794872873472.jpg';
 import guaranaLataImg from '../assets/images/dish_guarana_lata_1795391688699.jpg';
+import strogonoffFrangoImg from '../assets/images/prato_strogonoff_frango_1794883024503.jpg';
+import contraFileAceboladoImg from '../assets/images/dish_bife_acebolado_1794872872311.jpg';
+import calabresaAceboladaImg from '../assets/images/dish_calabresa_acebolada_1795482166193.jpg';
 import { Order, Product, StoreSettings } from '../types';
 
 export const HERO_BANNER_IMAGE = heroBannerImg;
@@ -15,9 +18,12 @@ export const HERO_BANNER_IMAGE = heroBannerImg;
 export const PRESET_DISH_IMAGES = [
   { label: 'Marmita Tradicional', url: marmitaTradicionalImg },
   { label: 'Frango Grelhado', url: frangoGrelhadoImg },
+  { label: 'Strogonoff de Frango', url: strogonoffFrangoImg },
   { label: 'Feijoada Completa', url: feijoadaCompletaImg },
   { label: 'Bife à Parmegiana', url: bifeParmegianaImg },
+  { label: 'Contra-Filé Acebolado', url: contraFileAceboladoImg },
   { label: 'Porção de Mandioca', url: mandiocaFritaImg },
+  { label: 'Calabresa Acebolada', url: calabresaAceboladaImg },
   { label: 'Refrigerante Guaraná', url: guaranaLataImg },
   { label: 'Suco Natural de Laranja', url: sucoLaranjaImg },
   { label: 'Pudim Caseiro', url: pudimCarameloImg },
@@ -33,7 +39,7 @@ export const INITIAL_STORE_SETTINGS: StoreSettings = {
   phone: '(11) 98765-4321',
   address: 'Rua das Flores, 245 — Vila Nova',
   openingHours: 'Seg a Sáb · 10h30 às 15h00',
-  deliveryEstimate: '30–45 min',
+  deliveryEstimate: '20-30 min',
   deliveryFee: 5.0,
   paymentMethods: ['Pix', 'Dinheiro', 'Cartão'],
   isOpen: true,
@@ -65,6 +71,18 @@ export const INITIAL_PRODUCTS: Product[] = [
     available: true,
   },
   {
+    id: 'prod-10',
+    name: 'Marmita Strogonoff de Frango (G)',
+    category: 'Marmitas',
+    price: 24.9,
+    ingredients:
+      'Cubos de frango ao molho cremoso com champignon, arroz branco soltinho e batata palha crocante.',
+    description:
+      'Clássico strogonoff cremoso preparado na hora, servido bem quentinho com arroz soltinho e bastante batata palha.',
+    imageUrl: strogonoffFrangoImg,
+    available: true,
+  },
+  {
     id: 'prod-3',
     name: 'Feijoada Completa do Raimundo',
     category: 'Pratos Executivos',
@@ -89,6 +107,18 @@ export const INITIAL_PRODUCTS: Product[] = [
     available: true,
   },
   {
+    id: 'prod-11',
+    name: 'Contra-Filé Acebolado Executivo',
+    category: 'Pratos Executivos',
+    price: 34.9,
+    ingredients:
+      'Contra-filé grelhado com cebolas caramelizadas, arroz branco, feijão temperado e batatas rústicas douradas.',
+    description:
+      'Corte macio grelhado no ponto certo com cebolas douradas, acompanhado de arroz, feijão caseiro e batatas assadas.',
+    imageUrl: contraFileAceboladoImg,
+    available: true,
+  },
+  {
     id: 'prod-5',
     name: 'Porção de Torresmo e Mandioca',
     category: 'Porções',
@@ -97,6 +127,18 @@ export const INITIAL_PRODUCTS: Product[] = [
     description:
       'Porção generosa para acompanhar seu almoço: mandioca macia por dentro e torresmo bem sequinho.',
     imageUrl: mandiocaFritaImg,
+    available: true,
+  },
+  {
+    id: 'prod-12',
+    name: 'Porção de Calabresa Acebolada na Chapa',
+    category: 'Porções',
+    price: 26.0,
+    ingredients:
+      'Linguiça calabresa defumada fatiada, cebola dourada na chapa, cheiro-verde fresco e limão.',
+    description:
+      'Porção generosa de calabresa bem douradinha na chapa com cebolas caramelizadas e toque de salsinha.',
+    imageUrl: calabresaAceboladaImg,
     available: true,
   },
   {

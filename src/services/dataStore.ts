@@ -34,6 +34,7 @@ import {
   type StoreSettings,
 } from '../types';
 import { deleteStorageFileIfManaged } from './storageService';
+import { resolveBundledAssetUrl } from '../utils/assetResolver';
 
 const RESTAURANT_DOC_ID = 'default';
 
@@ -116,7 +117,9 @@ function normalizeStore(raw?: Record<string, unknown>): StoreSettings {
       typeof raw.subtitle === 'string'
         ? raw.subtitle
         : INITIAL_STORE_SETTINGS.subtitle,
-    logoUrl: typeof raw.logoUrl === 'string' ? raw.logoUrl : '',
+    logoUrl: resolveBundledAssetUrl(
+      typeof raw.logoUrl === 'string' ? raw.logoUrl : ''
+    ),
     logoStoragePath:
       typeof raw.logoStoragePath === 'string' ? raw.logoStoragePath : undefined,
     phone:
@@ -131,7 +134,9 @@ function normalizeStore(raw?: Record<string, unknown>): StoreSettings {
         : INITIAL_STORE_SETTINGS.openingHours,
     deliveryEstimate:
       typeof raw.deliveryEstimate === 'string'
-        ? raw.deliveryEstimate
+        ? raw.deliveryEstimate === '30–45 min'
+          ? '20-30 min'
+          : raw.deliveryEstimate
         : INITIAL_STORE_SETTINGS.deliveryEstimate,
     deliveryFee:
       typeof raw.deliveryFee === 'number'
@@ -158,7 +163,9 @@ function normalizeProduct(
     price: typeof raw.price === 'number' ? raw.price : 0,
     ingredients: typeof raw.ingredients === 'string' ? raw.ingredients : '',
     description: typeof raw.description === 'string' ? raw.description : '',
-    imageUrl: typeof raw.imageUrl === 'string' ? raw.imageUrl : '',
+    imageUrl: resolveBundledAssetUrl(
+      typeof raw.imageUrl === 'string' ? raw.imageUrl : ''
+    ),
     imageStoragePath:
       typeof raw.imageStoragePath === 'string'
         ? raw.imageStoragePath
@@ -405,7 +412,7 @@ export const dataStore = {
   },
 
   async syncCatalogCategoriesAndCoverage(): Promise<void> {
-    const STORAGE_KEY = 'nexus_catalog_sync_v2';
+    const STORAGE_KEY = 'nexus_catalog_sync_v4';
     try {
       if (
         typeof window !== 'undefined' &&
@@ -435,6 +442,13 @@ export const dataStore = {
 
       const batch = writeBatch(db);
       let hasChanges = false;
+      if (restaurantSnap.data()?.deliveryEstimate === '30–45 min') {
+        batch.update(doc(db, 'restaurants', RESTAURANT_DOC_ID), {
+          deliveryEstimate: INITIAL_STORE_SETTINGS.deliveryEstimate,
+          updatedAt: serverTimestamp(),
+        });
+        hasChanges = true;
+      }
       const effectiveState = new Map<string, Product>(
         existingProducts.map((p) => [p.id, { ...p }])
       );
@@ -477,8 +491,8 @@ export const dataStore = {
         }
       }
 
-      // 2. Garante que prod-8 e prod-9 existam se ainda não estiverem cadastrados
-      for (const extraId of ['prod-8', 'prod-9']) {
+      // 2. Garante que prod-8 a prod-12 existam se ainda não estiverem cadastrados
+      for (const extraId of ['prod-8', 'prod-9', 'prod-10', 'prod-11', 'prod-12']) {
         if (!existingById.has(extraId)) {
           const item = INITIAL_PRODUCTS.find((p) => p.id === extraId);
           if (item) {

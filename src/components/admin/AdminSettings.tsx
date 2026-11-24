@@ -19,9 +19,11 @@ import { formatPhoneMask } from '../../utils/format';
 import { authService } from '../../services/authService';
 import { uploadRestaurantLogo } from '../../services/storageService';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { resolveBundledAssetUrl } from '../../utils/assetResolver';
 
 interface AdminSettingsProps {
   settings: StoreSettings;
+  currentUserEmail?: string;
   onSaveSettings: (
     updated: StoreSettings,
     previousLogoStoragePath?: string
@@ -31,6 +33,7 @@ interface AdminSettingsProps {
 
 export const AdminSettings: React.FC<AdminSettingsProps> = ({
   settings,
+  currentUserEmail,
   onSaveSettings,
   onResetDemoData,
 }) => {
@@ -188,10 +191,10 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
       return;
     }
 
-    if (newPassword.trim().length < 4) {
+    if (newPassword.trim().length < 6) {
       setPwdStatus({
         type: 'error',
-        message: 'A nova senha deve ter pelo menos 4 caracteres.',
+        message: 'A nova senha deve ter pelo menos 6 caracteres.',
       });
       return;
     }
@@ -390,7 +393,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
             <div className="flex items-center gap-3">
               {form.logoUrl && (
                 <img
-                  src={form.logoUrl}
+                  src={resolveBundledAssetUrl(form.logoUrl)}
                   alt={`Logotipo de ${form.name}`}
                   referrerPolicy="no-referrer"
                   className="w-11 h-11 rounded-xl object-cover border border-slate-700 shrink-0"
@@ -503,7 +506,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
               onChange={(e) =>
                 setForm({ ...form, deliveryEstimate: e.target.value })
               }
-              placeholder="30–45 min"
+              placeholder="20-30 min"
               className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
             />
           </div>
@@ -583,7 +586,8 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
               Segurança do Painel Administrativo
             </h3>
             <p className="text-xs text-slate-400">
-              Altere a senha provisória para proteger o acesso ao painel do restaurante.
+              Altere a senha administrativa do painel (mínimo 6 caracteres)
+              {currentUserEmail ? ` · Conectado como ${currentUserEmail}` : ''}.
             </p>
           </div>
         </div>
@@ -631,7 +635,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Mínimo 4 caracteres"
+              placeholder="Mínimo 6 caracteres"
               autoComplete="new-password"
               className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
             />

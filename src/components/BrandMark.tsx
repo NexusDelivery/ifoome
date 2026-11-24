@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Zap } from 'lucide-react';
+import { resolveBundledAssetUrl } from '../utils/assetResolver';
 
 interface BrandMarkProps {
   compact?: boolean;
@@ -12,13 +13,18 @@ export const BrandMark: React.FC<BrandMarkProps> = ({
   logoUrl,
   alt = 'Logotipo Nexus Delivery',
 }) => {
+  const resolvedLogoUrl = resolveBundledAssetUrl(logoUrl);
   const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [resolvedLogoUrl]);
 
   return (
     <span className="inline-flex items-center gap-2 sm:gap-3 whitespace-nowrap shrink-0 select-none group min-w-0">
-      {logoUrl && !imgError ? (
+      {resolvedLogoUrl && !imgError ? (
         <img
-          src={logoUrl}
+          src={resolvedLogoUrl}
           alt={alt}
           referrerPolicy="no-referrer"
           onError={() => setImgError(true)}

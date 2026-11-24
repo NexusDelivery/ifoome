@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { User } from 'firebase/auth';
 import {
   AdminTab,
   AppArea,
@@ -33,7 +34,11 @@ function AppContent() {
   const [adminTab, setAdminTab] = useState<AdminTab>('dashboard');
   const [ordersFilter, setOrdersFilter] = useState<OrderFilter>('Ativos');
 
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [needsPasscode, setNeedsPasscode] = useState(false);
+  const authInFlightRef = useRef(false);
 
   const [store, setStore] = useState<StoreSettings>(INITIAL_STORE_SETTINGS);
   const [publicProducts, setPublicProducts] = useState<Product[]>([]);
@@ -45,11 +50,8 @@ function AppContent() {
     throw syncError;
   }
 
-  // Assinaturas públicas em tempo real (não requerem login)
+  // Assinaturas públicas em tempo real (somente leitura pública permitida nas regras)
   useEffect(() => {
-    void dataStore.syncCatalogCategoriesAndCoverage().catch((err) => {
-      console.warn('Não foi possível sincronizar categorias do cardápio:', err);
-    });
     const unsubStore = dataStore.subscribeStore(
       (nextStore) => setStore(nextStore),
       (err) => setSyncError(err)
@@ -64,17 +66,68 @@ function AppContent() {
     };
   }, []);
 
-  // Assinaturas administrativas em tempo real (somente após validar a senha)
+  // Observa sessão do Firebase Authentication
   useEffect(() => {
-    if (!adminUnlocked) {
+    let active = true;
+    const unsubAuth = authService.subscribeAuth((user) => {
+      if (!active) return;
+      setAuthUser(user);
+      if (!user) {
+        setAdminUnlocked(false);
+        setNeedsPasscode(false);
+        setAuthReady(true);
+        return;
+      }
+
+      if (authInFlightRef.current) {
+        setAuthReady(true);
+        return;
+      }
+
+      void authService
+        .checkCurrentAdminAccess(user)
+        .then((status) => {
+          if (!active || authInFlightRef.current) return;
+          setAdminUnlocked(status.unlocked);
+          setNeedsPasscode(Boolean(status.needsPasscode));
+          setAuthReady(true);
+        })
+        .catch(() => {
+          if (!active || authInFlightRef.current) return;
+          setAdminUnlocked(false);
+          setNeedsPasscode(true);
+          setAuthReady(true);
+        });
+    });
+
+    return () => {
+      active = false;
+      unsubAuth();
+    };
+  }, []);
+
+  // Assinaturas administrativas em tempo real (somente após autenticação admin confirmada)
+  useEffect(() => {
+    if (!authReady || !adminUnlocked || !authUser) {
       setAdminProducts([]);
       setOrders([]);
       return;
     }
 
-    void dataStore.seedInitialDataIfEmpty().catch((err) => {
-      setSyncError(err instanceof Error ? err : new Error(String(err)));
-    });
+    let cancelled = false;
+
+    const initAdminWorkspace = async () => {
+      try {
+        await dataStore.seedInitialDataIfEmpty();
+        await dataStore.syncCatalogCategoriesAndCoverage();
+      } catch (err) {
+        if (!cancelled) {
+          setSyncError(err instanceof Error ? err : new Error(String(err)));
+        }
+      }
+    };
+
+    void initAdminWorkspace();
 
     const unsubAdminProducts = dataStore.subscribeAdminProducts(
       (list) => setAdminProducts(list),
@@ -86,10 +139,11 @@ function AppContent() {
     );
 
     return () => {
+      cancelled = true;
       unsubAdminProducts();
       unsubOrders();
     };
-  }, [adminUnlocked]);
+  }, [authReady, adminUnlocked, authUser]);
 
   const activeOrdersCount = orders.filter(
     (o) =>
@@ -168,16 +222,61 @@ function AppContent() {
     return dataStore.createOrder(orderInput, publicProducts, store);
   };
 
-  const handleVerifyAdminPassword = async (password: string) => {
-    const result = await authService.unlockAdminPanel(password);
-    if (result.ok) {
-      setAdminUnlocked(true);
+  const handleGoogleSignIn = async () => {
+    authInFlightRef.current = true;
+    try {
+      const result = await authService.signInWithGoogle();
+      if (result.ok) {
+        setAdminUnlocked(true);
+        setNeedsPasscode(false);
+      } else if (result.needsPasscode) {
+        setAdminUnlocked(false);
+        setNeedsPasscode(true);
+      }
+      return result;
+    } finally {
+      authInFlightRef.current = false;
     }
-    return result;
   };
 
-  const handleLockAdmin = () => {
+  const handleEmailPasswordSignIn = async (email: string, password: string) => {
+    authInFlightRef.current = true;
+    try {
+      const result = await authService.signInWithEmailAndPasswordAdmin(
+        email,
+        password
+      );
+      if (result.ok) {
+        setAdminUnlocked(true);
+        setNeedsPasscode(false);
+      } else if (result.needsPasscode) {
+        setAdminUnlocked(false);
+        setNeedsPasscode(true);
+      }
+      return result;
+    } finally {
+      authInFlightRef.current = false;
+    }
+  };
+
+  const handleVerifyPasscode = async (password: string) => {
+    authInFlightRef.current = true;
+    try {
+      const result = await authService.unlockSignedInUserWithPasscode(password);
+      if (result.ok) {
+        setAdminUnlocked(true);
+        setNeedsPasscode(false);
+      }
+      return result;
+    } finally {
+      authInFlightRef.current = false;
+    }
+  };
+
+  const handleSignOut = async () => {
+    await authService.signOutAdmin();
     setAdminUnlocked(false);
+    setNeedsPasscode(false);
     setArea('public');
   };
 
@@ -192,12 +291,28 @@ function AppContent() {
     );
   }
 
-  if (!adminUnlocked) {
+  if (!authReady) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center px-4">
+        <div className="text-center space-y-2">
+          <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-slate-400">Verificando sessão administrativa...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!adminUnlocked || !authUser) {
     return (
       <AdminLoginView
         storeName={store.name}
         logoUrl={store.logoUrl}
-        onVerifyPassword={handleVerifyAdminPassword}
+        signedInEmail={authUser?.email ?? null}
+        needsPasscode={needsPasscode && Boolean(authUser)}
+        onGoogleSignIn={handleGoogleSignIn}
+        onEmailPasswordSignIn={handleEmailPasswordSignIn}
+        onVerifyPasscode={handleVerifyPasscode}
+        onSwitchAccount={() => void authService.signOutAdmin()}
         onBackToMenu={() => setArea('public')}
       />
     );
@@ -211,7 +326,7 @@ function AppContent() {
       onToggleStoreOpen={() => void handleToggleStoreOpen()}
       activeOrdersCount={activeOrdersCount}
       onSwitchToPublic={() => setArea('public')}
-      onLockAdmin={handleLockAdmin}
+      onLockAdmin={handleSignOut}
     >
       {adminTab === 'dashboard' && (
         <AdminDashboard
@@ -250,6 +365,7 @@ function AppContent() {
       {adminTab === 'settings' && (
         <AdminSettings
           settings={store}
+          currentUserEmail={authUser.email ?? undefined}
           onSaveSettings={handleSaveStoreSettings}
           onResetDemoData={handleResetDemoData}
         />

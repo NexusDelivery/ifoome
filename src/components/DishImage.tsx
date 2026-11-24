@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { UtensilsCrossed } from 'lucide-react';
+import { resolveBundledAssetUrl } from '../utils/assetResolver';
 
 interface DishImageProps {
   src?: string;
@@ -8,9 +9,14 @@ interface DishImageProps {
 }
 
 export const DishImage: React.FC<DishImageProps> = ({ src, alt, className = '' }) => {
+  const resolvedSrc = resolveBundledAssetUrl(src);
   const [hasError, setHasError] = useState(false);
 
-  if (!src || hasError) {
+  useEffect(() => {
+    setHasError(false);
+  }, [resolvedSrc]);
+
+  if (!resolvedSrc || hasError) {
     return (
       <div
         role="img"
@@ -27,7 +33,7 @@ export const DishImage: React.FC<DishImageProps> = ({ src, alt, className = '' }
 
   return (
     <img
-      src={src}
+      src={resolvedSrc}
       alt={alt}
       loading="lazy"
       referrerPolicy="no-referrer"

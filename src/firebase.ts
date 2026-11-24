@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { doc, getDocFromServer, getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
@@ -6,7 +7,11 @@ import firebaseConfig from '../firebase-applet-config.json';
 const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 export enum OperationType {
   CREATE = 'create',
@@ -22,7 +27,15 @@ export interface FirestoreErrorInfo {
   operationType: OperationType;
   path: string | null;
   authInfo: {
-    mode: 'password-only';
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
   };
 }
 
@@ -31,10 +44,20 @@ export function handleFirestoreError(
   operationType: OperationType,
   path: string | null
 ): never {
+  const currentUser = auth.currentUser;
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      mode: 'password-only',
+      userId: currentUser?.uid ?? null,
+      email: currentUser?.email ?? null,
+      emailVerified: currentUser?.emailVerified ?? null,
+      isAnonymous: currentUser?.isAnonymous ?? null,
+      tenantId: currentUser?.tenantId ?? null,
+      providerInfo:
+        currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) ?? [],
     },
     operationType,
     path,
