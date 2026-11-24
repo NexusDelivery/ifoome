@@ -1,4 +1,3 @@
-import heroBannerImg from '../assets/images/hero_marmitaria_banner_1794867991248.jpg';
 import marmitaTradicionalImg from '../assets/images/dish_marmita_tradicional_1794867991059.jpg';
 import frangoGrelhadoImg from '../assets/images/dish_frango_grelhado_1794867991780.jpg';
 import feijoadaCompletaImg from '../assets/images/dish_feijoada_completa_1794867992893.jpg';
@@ -12,8 +11,6 @@ import strogonoffFrangoImg from '../assets/images/prato_strogonoff_frango_179488
 import contraFileAceboladoImg from '../assets/images/dish_bife_acebolado_1794872872311.jpg';
 import calabresaAceboladaImg from '../assets/images/dish_calabresa_acebolada_1795482166193.jpg';
 import { Order, Product, StoreSettings } from '../types';
-
-export const HERO_BANNER_IMAGE = heroBannerImg;
 
 export const PRESET_DISH_IMAGES = [
   { label: 'Marmita Tradicional', url: marmitaTradicionalImg },

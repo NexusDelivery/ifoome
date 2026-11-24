@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   ArrowLeft,
   Check,
-  CheckCircle2,
   Copy,
   MapPin,
   MessageCircle,
@@ -51,8 +50,8 @@ export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-6">
       <div className="bg-slate-900 rounded-3xl border border-slate-700 p-6 sm:p-8 space-y-6 shadow-2xl">
         <div className="text-center space-y-3">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto">
-            <CheckCircle2 className="w-8 h-8" aria-hidden="true" />
+          <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto animate-bounce">
+            <Check className="w-10 h-10" strokeWidth={3} aria-hidden="true" />
           </div>
           <p className="text-xs font-semibold text-emerald-400">
             Pedido registrado no sistema de {store.name}

@@ -18,6 +18,11 @@ import {
 } from './types';
 import { INITIAL_STORE_SETTINGS } from './data/mockData';
 import { canTransitionOrderStatus } from './utils/format';
+import {
+  playNewOrderNotificationSound,
+  showNewOrderBrowserNotification,
+  unlockNotificationAudio,
+} from './utils/notifications';
 import { authService } from './services/authService';
 import { dataStore } from './services/dataStore';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -28,6 +33,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { AdminOrders, OrderFilter } from './components/admin/AdminOrders';
 import { AdminMenu } from './components/admin/AdminMenu';
 import { AdminSettings } from './components/admin/AdminSettings';
+import { WhatsAppStatusModal } from './components/admin/WhatsAppStatusModal';
 
 function AppContent() {
   const [area, setArea] = useState<AppArea>('public');
@@ -41,10 +47,21 @@ function AppContent() {
   const authInFlightRef = useRef(false);
 
   const [store, setStore] = useState<StoreSettings>(INITIAL_STORE_SETTINGS);
+  const storeRef = useRef<StoreSettings>(store);
+  storeRef.current = store;
+
   const [publicProducts, setPublicProducts] = useState<Product[]>([]);
   const [adminProducts, setAdminProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [focusedOrderId, setFocusedOrderId] = useState<string | null>(null);
+  const [whatsappPrompt, setWhatsappPrompt] = useState<{
+    order: Order;
+    nextStatus: OrderStatus;
+  } | null>(null);
   const [syncError, setSyncError] = useState<Error | null>(null);
+
+  const ordersHydratedRef = useRef(false);
+  const knownOrderIdsRef = useRef<Set<string>>(new Set());
 
   if (syncError) {
     throw syncError;
@@ -109,12 +126,16 @@ function AppContent() {
   // Assinaturas administrativas em tempo real (somente após autenticação admin confirmada)
   useEffect(() => {
     if (!authReady || !adminUnlocked || !authUser) {
+      ordersHydratedRef.current = false;
+      knownOrderIdsRef.current.clear();
       setAdminProducts([]);
       setOrders([]);
       return;
     }
 
     let cancelled = false;
+    ordersHydratedRef.current = false;
+    knownOrderIdsRef.current.clear();
 
     const initAdminWorkspace = async () => {
       try {
@@ -129,17 +150,57 @@ function AppContent() {
 
     void initAdminWorkspace();
 
+    const handleUserGesture = () => {
+      unlockNotificationAudio();
+    };
+    window.addEventListener('pointerdown', handleUserGesture, { passive: true });
+    window.addEventListener('keydown', handleUserGesture, { passive: true });
+
     const unsubAdminProducts = dataStore.subscribeAdminProducts(
       (list) => setAdminProducts(list),
       (err) => setSyncError(err)
     );
     const unsubOrders = dataStore.subscribeAdminOrders(
-      (list) => setOrders(list),
+      (list) => {
+        if (!ordersHydratedRef.current) {
+          knownOrderIdsRef.current = new Set(list.map((o) => o.id));
+          ordersHydratedRef.current = true;
+        } else {
+          let playedSoundForBatch = false;
+          for (const order of list) {
+            if (!knownOrderIdsRef.current.has(order.id)) {
+              knownOrderIdsRef.current.add(order.id);
+              if (order.status === 'Recebido' && !order.isDemo) {
+                if (!playedSoundForBatch) {
+                  playedSoundForBatch = true;
+                  void playNewOrderNotificationSound();
+                }
+                showNewOrderBrowserNotification(
+                  order,
+                  storeRef.current.name,
+                  storeRef.current.logoUrl,
+                  (clickedOrderId) => {
+                    setArea('admin');
+                    setOrdersFilter('Ativos');
+                    setAdminTab('orders');
+                    setFocusedOrderId(clickedOrderId);
+                  }
+                );
+              }
+            }
+          }
+        }
+        setOrders(list);
+      },
       (err) => setSyncError(err)
     );
 
     return () => {
       cancelled = true;
+      ordersHydratedRef.current = false;
+      knownOrderIdsRef.current.clear();
+      window.removeEventListener('pointerdown', handleUserGesture);
+      window.removeEventListener('keydown', handleUserGesture);
       unsubAdminProducts();
       unsubOrders();
     };
@@ -167,6 +228,7 @@ function AppContent() {
       return;
     }
     await dataStore.updateOrderStatus(orderId, nextStatus);
+    setWhatsappPrompt({ order: target, nextStatus });
   };
 
   const handleSaveProduct = async (
@@ -350,6 +412,8 @@ function AppContent() {
           onUpdateOrderStatus={(id, status) =>
             void handleUpdateOrderStatus(id, status)
           }
+          focusedOrderId={focusedOrderId}
+          onClearFocusedOrder={() => setFocusedOrderId(null)}
         />
       )}
 
@@ -370,6 +434,13 @@ function AppContent() {
           onResetDemoData={handleResetDemoData}
         />
       )}
+
+      <WhatsAppStatusModal
+        order={whatsappPrompt?.order ?? null}
+        nextStatus={whatsappPrompt?.nextStatus ?? null}
+        storeName={store.name}
+        onClose={() => setWhatsappPrompt(null)}
+      />
     </AdminLayout>
   );
 }

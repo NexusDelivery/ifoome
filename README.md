@@ -182,13 +182,12 @@ As especificações detalhadas do MVP estão documentadas nos seguintes arquivos
 
 ---
 
-## 13. Publicação Automática (GitHub Actions)
+## 13. Publicação Automática (GitHub Pages)
 
-O projeto possui workflow de integração e entrega contínua configurado em `.github/workflows/deploy.yml` para facilitar testes da equipe em diferentes dispositivos antes da integração final:
+O projeto está configurado para publicação contínua no **GitHub Pages** via GitHub Actions (`.github/workflows/deploy.yml`) a partir da branch `develop`:
 
-- **Branch exclusiva de publicação contínua:** `develop` (a branch `main` permanece reservada para a versão final e estável).
-- **Fluxo automático:** a cada novo `push` na branch `develop`, o GitHub Actions instala as dependências, valida os tipos (`npm run lint`), gera o build estático (`npm run build` com `base` ajustado via `VITE_BASE_PATH` pelo `actions/configure-pages`) e publica o diretório `dist/` no **GitHub Pages**.
-- **Observação sobre IA no deploy estático:** o GitHub Pages hospeda apenas os arquivos estáticos do frontend (`dist/`). O fluxo principal conectado ao Firebase (cardápio em tempo real, envio de pedidos, upload de imagens e painel administrativo protegido) funciona normalmente; já a sugestão automática de descrições com IA (`/api/ai/describe-dish`) requer servidor Node (`server.ts`) com `GEMINI_API_KEY` configurada e degrada com aviso amigável para preenchimento manual no deploy estático.
+- **Frontend estático (`Vite`):** o workflow executa `npm run lint` e `npm run build` utilizando `VITE_BASE_PATH` configurado automaticamente pelo `actions/configure-pages`, copiando `dist/index.html` para `dist/404.html` como fallback de SPA.
+- **Firebase:** mantenha o domínio publicado do GitHub Pages adicionado em **Authentication → Settings → Authorized domains** no Console do Firebase para que o login com Google funcione em produção.
 
 ---
 
@@ -245,9 +244,9 @@ Para o funcionamento completo dos uploads de imagem e da IA em ambiente externo:
 1. **Firebase Storage:**
    - Caso ainda não tenha sido inicializado no Console do projeto `i-foome-delivery`, ative o serviço **Storage** e publique as regras contidas no arquivo `storage.rules` deste repositório.
 2. **Primeiro acesso ao painel administrativo:**
-   - No primeiro acesso com o banco vazio, abra **Área do estabelecimento** e informe a senha provisória exibida na tela de login para inicializar os dados do restaurante, o cardápio inicial e o registro de senha no Firestore.
+   - No primeiro acesso com o banco vazio, abra **Área do estabelecimento** e autentique-se com uma conta autorizada para inicializar os dados do restaurante e o cardápio inicial no Firestore.
 3. **Assistente de IA (`GEMINI_API_KEY`):**
-   - Quando hospedado com backend Node (`server.ts`), configure a variável de ambiente `GEMINI_API_KEY` no ambiente do servidor.
+   - No servidor local (`server.ts`), configure a variável de ambiente `GEMINI_API_KEY`. No GitHub Pages (hospedagem estática), o cadastro e a edição manual dos pratos continuam operando normalmente sem backend Node.js.
 
 ---
 

@@ -194,3 +194,51 @@ export function buildWhatsAppOrderMessage(order: Order, storeName: string): stri
 
   return lines.join('\n');
 }
+
+export function buildWhatsAppStatusUpdateMessage(
+  order: Order,
+  status: OrderStatus,
+  storeName: string
+): string {
+  switch (status) {
+    case 'Recebido':
+      return `Recebemos o seu pedido *${order.code}* (${formatCurrency(order.total)}) e em breve vamos iniciar o preparo.`;
+
+    case 'Em preparo':
+      return [
+        `Olá, ${order.customerName}! Aqui é da *${storeName}*.`,
+        '',
+        `Seu pedido *${order.code}* já está *em preparo* na cozinha!`,
+        `Total: ${formatCurrency(order.total)} (${order.paymentMethod})`,
+      ].join('\n');
+
+    case 'Saiu para entrega':
+      if (order.modality === 'retirada') {
+        return [
+          `Boas notícias! Seu pedido *${order.code}* já está *pronto para retirada* no balcão.`,
+          `Total: ${formatCurrency(order.total)} (${order.paymentMethod})`,
+        ].join('\n');
+      }
+      return [
+        `Seu pedido *${order.code}* *saiu para entrega*!`,
+        order.address
+          ? `Endereço: ${order.address.street}, ${order.address.number} - ${order.address.neighborhood}${
+              order.address.complement ? ` (${order.address.complement})` : ''
+            }`
+          : '',
+        `Total: ${formatCurrency(order.total)} (${order.paymentMethod}${
+          order.paymentMethod === 'Dinheiro' && order.changeFor
+            ? `, troco para ${formatCurrency(order.changeFor)}`
+            : ''
+        })`,
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+    case 'Concluído':
+      return `Seu pedido *${order.code}* foi *concluído*! Obrigado pela preferência e bom apetite.`;
+
+    case 'Cancelado':
+      return `Infelizmente seu pedido *${order.code}* precisou ser *cancelado*. Se precisar de ajuda ou quiser fazer um novo pedido, responda esta mensagem.`;
+  }
+}

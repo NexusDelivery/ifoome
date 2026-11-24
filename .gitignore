@@ -7,5 +7,6 @@ coverage/
 .env*
 !.env.example
 .aistudio/
+.tempmediaStorage/
 public/assets/aistudio/
 workspace/

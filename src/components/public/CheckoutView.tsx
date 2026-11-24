@@ -19,6 +19,11 @@ import {
   Product,
   StoreSettings,
 } from '../../types';
+import {
+  clearSavedCustomerData,
+  loadSavedCustomerData,
+  saveCustomerData,
+} from '../../utils/customerStorage';
 import { formatCurrency, formatPhoneMask } from '../../utils/format';
 
 interface SyncedCartItem extends CartItem {
@@ -60,26 +65,83 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
       ? store.paymentMethods
       : ALL_PAYMENT_METHODS;
 
-  const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [modality, setModality] = useState<DeliveryModality>('entrega');
-  const [street, setStreet] = useState('');
-  const [number, setNumber] = useState('');
-  const [neighborhood, setNeighborhood] = useState('');
-  const [complement, setComplement] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(
-    availablePaymentMethods[0]
+  const [initialSaved] = useState(() => loadSavedCustomerData());
+  const [customerName, setCustomerName] = useState(
+    () => initialSaved?.customerName ?? ''
+  );
+  const [customerPhone, setCustomerPhone] = useState(() =>
+    initialSaved?.customerPhone ? formatPhoneMask(initialSaved.customerPhone) : ''
+  );
+  const [modality, setModality] = useState<DeliveryModality>(
+    () => initialSaved?.modality ?? 'entrega'
+  );
+  const [street, setStreet] = useState(() => initialSaved?.street ?? '');
+  const [number, setNumber] = useState(() => initialSaved?.number ?? '');
+  const [neighborhood, setNeighborhood] = useState(
+    () => initialSaved?.neighborhood ?? ''
+  );
+  const [complement, setComplement] = useState(() => initialSaved?.complement ?? '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(() =>
+    initialSaved?.paymentMethod &&
+    availablePaymentMethods.includes(initialSaved.paymentMethod)
+      ? initialSaved.paymentMethod
+      : availablePaymentMethods[0]
   );
   const [changeForText, setChangeForText] = useState('');
   const [generalObservation, setGeneralObservation] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const hasAnySavedFields = Boolean(
+    customerName.trim() ||
+      customerPhone.trim() ||
+      street.trim() ||
+      number.trim() ||
+      neighborhood.trim() ||
+      complement.trim()
+  );
+
   useEffect(() => {
     if (!availablePaymentMethods.includes(paymentMethod)) {
       setPaymentMethod(availablePaymentMethods[0]);
     }
   }, [availablePaymentMethods, paymentMethod]);
+
+  useEffect(() => {
+    if (!hasAnySavedFields) return;
+    saveCustomerData({
+      customerName,
+      customerPhone,
+      modality,
+      street,
+      number,
+      neighborhood,
+      complement,
+      paymentMethod,
+    });
+  }, [
+    hasAnySavedFields,
+    customerName,
+    customerPhone,
+    modality,
+    street,
+    number,
+    neighborhood,
+    complement,
+    paymentMethod,
+  ]);
+
+  const handleClearSavedProfile = () => {
+    clearSavedCustomerData();
+    setCustomerName('');
+    setCustomerPhone('');
+    setModality('entrega');
+    setStreet('');
+    setNumber('');
+    setNeighborhood('');
+    setComplement('');
+    setPaymentMethod(availablePaymentMethods[0]);
+  };
 
   const enrichedCart = cart.map((item) => {
     const liveProduct = catalogProducts.find((p) => p.id === item.product.id);
@@ -218,9 +280,20 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
         <div className="lg:col-span-7 space-y-5">
           {/* Dados do Cliente */}
           <section className="bg-slate-900 rounded-2xl border border-slate-800 p-5 space-y-4">
-            <h2 className="font-display font-bold text-lg text-white">
-              1. Seus dados
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-display font-bold text-lg text-white">
+                1. Seus dados
+              </h2>
+              {hasAnySavedFields && (
+                <button
+                  type="button"
+                  onClick={handleClearSavedProfile}
+                  className="text-xs font-semibold text-slate-400 hover:text-orange-400 transition-colors"
+                >
+                  Limpar dados salvos
+                </button>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
