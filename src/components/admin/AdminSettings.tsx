@@ -119,9 +119,9 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
     }
 
     const parsedFee = Number(feeText.replace(',', '.'));
-    if (Number.isNaN(parsedFee) || parsedFee < 0) {
+    if (Number.isNaN(parsedFee) || parsedFee < 0 || parsedFee > 1000) {
       setErrorMsg(
-        'Informe uma taxa de entrega válida (use 0,00 para entrega grátis).'
+        'Informe uma taxa de entrega válida entre R$ 0,00 e R$ 1.000,00.'
       );
       return;
     }
@@ -146,10 +146,15 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
       return;
     }
 
-    if ((form.logoUrl ?? '').trim().startsWith('data:')) {
+    const trimmedLogo = (form.logoUrl ?? '').trim();
+    if (trimmedLogo.startsWith('data:')) {
       setErrorMsg(
         'Envie o logotipo pelo botão "Enviar logo" (Firebase Storage) ou informe uma URL externa.'
       );
+      return;
+    }
+    if (/^(javascript|vbscript|file):/i.test(trimmedLogo)) {
+      setErrorMsg('Informe um endereço válido para o logotipo.');
       return;
     }
 
@@ -315,6 +320,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
               id="store-name"
               type="text"
               required
+              maxLength={120}
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
@@ -331,6 +337,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
             <input
               id="store-subtitle"
               type="text"
+              maxLength={280}
               value={form.subtitle}
               onChange={(e) => setForm({ ...form, subtitle: e.target.value })}
               className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
@@ -402,6 +409,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
               <input
                 id="store-logo"
                 type="text"
+                maxLength={1024}
                 value={form.logoUrl ?? ''}
                 onChange={(e) =>
                   setForm({
@@ -449,6 +457,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
             <input
               id="store-hours"
               type="text"
+              maxLength={100}
               value={form.openingHours}
               onChange={(e) => setForm({ ...form, openingHours: e.target.value })}
               placeholder="Seg a Sáb · 10h30 às 15h00"
@@ -466,6 +475,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
             <input
               id="store-address"
               type="text"
+              maxLength={200}
               value={form.address}
               onChange={(e) => setForm({ ...form, address: e.target.value })}
               className="w-full min-h-[44px] px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-sm text-slate-100 focus:outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20"
@@ -502,6 +512,7 @@ export const AdminSettings: React.FC<AdminSettingsProps> = ({
             <input
               id="store-estimate"
               type="text"
+              maxLength={60}
               value={form.deliveryEstimate}
               onChange={(e) =>
                 setForm({ ...form, deliveryEstimate: e.target.value })

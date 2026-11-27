@@ -819,8 +819,49 @@ export const dataStore = {
     if (!store.isOpen) {
       return { ok: false, error: 'O restaurante está fechado no momento.' };
     }
-    if (orderInput.items.length === 0) {
-      return { ok: false, error: 'A sacola está vazia.' };
+    if (orderInput.items.length === 0 || orderInput.items.length > 50) {
+      return {
+        ok: false,
+        error:
+          orderInput.items.length === 0
+            ? 'A sacola está vazia.'
+            : 'O pedido excede o limite de 50 itens diferentes.',
+      };
+    }
+
+    const cleanName = orderInput.customerName.trim();
+    const cleanPhone = orderInput.customerPhone.trim();
+    const phoneDigits = cleanPhone.replace(/\D/g, '');
+    if (cleanName.length < 2 || cleanName.length > 100) {
+      return {
+        ok: false,
+        error: 'Informe seu nome (entre 2 e 100 caracteres).',
+      };
+    }
+    if (phoneDigits.length < 10 || phoneDigits.length > 11 || cleanPhone.length > 25) {
+      return {
+        ok: false,
+        error: 'Informe um telefone/WhatsApp válido com DDD.',
+      };
+    }
+
+    if (orderInput.modality === 'entrega') {
+      const addr = orderInput.address;
+      if (
+        !addr ||
+        addr.street.trim().length < 2 ||
+        addr.street.trim().length > 140 ||
+        addr.number.trim().length < 1 ||
+        addr.number.trim().length > 30 ||
+        addr.neighborhood.trim().length < 2 ||
+        addr.neighborhood.trim().length > 100
+      ) {
+        return {
+          ok: false,
+          error:
+            'Preencha Rua, Número e Bairro válidos para entrega.',
+        };
+      }
     }
 
     const snapshotItems = [];
@@ -834,12 +875,20 @@ export const dataStore = {
           error: `O prato "${cartItem.product.name}" não está mais disponível.`,
         };
       }
+      const safeQty = Math.floor(cartItem.quantity);
+      if (!Number.isFinite(safeQty) || safeQty < 1 || safeQty > 99) {
+        return {
+          ok: false,
+          error: `Quantidade inválida para "${catalogItem.name}" (permitido de 1 a 99).`,
+        };
+      }
+      const cleanObs = cartItem.observation?.trim().slice(0, 300);
       snapshotItems.push({
         productId: catalogItem.id,
-        name: catalogItem.name,
+        name: catalogItem.name.slice(0, 120),
         unitPrice: catalogItem.price,
-        quantity: cartItem.quantity,
-        ...(cartItem.observation ? { observation: cartItem.observation } : {}),
+        quantity: safeQty,
+        ...(cleanObs ? { observation: cleanObs } : {}),
       });
     }
 
@@ -854,6 +903,24 @@ export const dataStore = {
       orderInput.modality === 'entrega' ? store.deliveryFee : 0;
     const total = Math.round((subtotal + deliveryFee) * 100) / 100;
 
+    if (subtotal <= 0 || subtotal > 100000 || total <= 0 || total > 101000) {
+      return {
+        ok: false,
+        error: 'O valor total do pedido está fora do limite permitido.',
+      };
+    }
+
+    if (
+      orderInput.paymentMethod === 'Dinheiro' &&
+      typeof orderInput.changeFor === 'number' &&
+      (orderInput.changeFor < total || orderInput.changeFor > 100000)
+    ) {
+      return {
+        ok: false,
+        error: 'O valor de troco informado é inválido para o total do pedido.',
+      };
+    }
+
     const orderId = `ord-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
     const numericSuffix = `${String(Date.now()).slice(-3)}${Math.floor(
       10 + Math.random() * 90
@@ -865,8 +932,8 @@ export const dataStore = {
       code,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      customerName: orderInput.customerName.trim(),
-      customerPhone: orderInput.customerPhone.trim(),
+      customerName: cleanName,
+      customerPhone: cleanPhone,
       modality: orderInput.modality,
       paymentMethod: orderInput.paymentMethod,
       items: snapshotItems,
@@ -883,7 +950,7 @@ export const dataStore = {
         number: orderInput.address.number.trim(),
         neighborhood: orderInput.address.neighborhood.trim(),
         ...(orderInput.address.complement?.trim()
-          ? { complement: orderInput.address.complement.trim() }
+          ? { complement: orderInput.address.complement.trim().slice(0, 120) }
           : {}),
       };
     }
@@ -897,13 +964,29 @@ export const dataStore = {
 
     if (orderInput.generalObservation?.trim()) {
       firestorePayload.generalObservation =
-        orderInput.generalObservation.trim();
+        orderInput.generalObservation.trim().slice(0, 500);
     }
 
     try {
       await setDoc(doc(db, 'orders', orderId), firestorePayload);
     } catch (err) {
-      handleFirestoreError(err, OperationType.CREATE, `orders/${orderId}`);
+      try {
+        handleFirestoreError(err, OperationType.CREATE, `orders/${orderId}`);
+      } catch (wrapped) {
+        const msg = wrapped instanceof Error ? wrapped.message : '';
+        if (msg.toLowerCase().includes('permission')) {
+          return {
+            ok: false,
+            error:
+              'Não foi possível concluir o pedido agora. Verifique se o estabelecimento ainda está aberto e tente novamente.',
+          };
+        }
+        return {
+          ok: false,
+          error:
+            'Erro ao registrar seu pedido no servidor. Verifique sua conexão e tente novamente.',
+        };
+      }
     }
 
     const nowIso = new Date().toISOString();

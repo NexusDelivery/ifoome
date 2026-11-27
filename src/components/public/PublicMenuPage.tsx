@@ -182,7 +182,9 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
 
   const addToCart = (product: Product, quantity: number, observation?: string) => {
     if (!store.isOpen || !product.available) return;
-    const cleanObs = observation?.trim() || undefined;
+    const safeQty = Math.max(1, Math.min(99, quantity));
+    const cleanObs = observation?.trim().slice(0, 300) || undefined;
+    let limitReached = false;
     setCart((prev) => {
       const existingIndex = prev.findIndex(
         (item) =>
@@ -192,20 +194,30 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
       if (existingIndex >= 0) {
         return prev.map((item, idx) =>
           idx === existingIndex
-            ? { ...item, product, quantity: item.quantity + quantity }
+            ? { ...item, product, quantity: Math.min(99, item.quantity + safeQty) }
             : item
         );
       }
-      return [...prev, { product, quantity, observation: cleanObs }];
+      if (prev.length >= 50) {
+        limitReached = true;
+        return prev;
+      }
+      return [...prev, { product, quantity: safeQty, observation: cleanObs }];
     });
-    showToast(`+${quantity} ${product.name} adicionado!`);
+    if (limitReached) {
+      showToast('Limite de 50 itens diferentes no carrinho atingido.');
+      return;
+    }
+    showToast(`+${safeQty} ${product.name} adicionado!`);
   };
 
   const updateCartItemQty = (index: number, delta: number) => {
     setCart((prev) =>
       prev
         .map((item, idx) =>
-          idx === index ? { ...item, quantity: item.quantity + delta } : item
+          idx === index
+            ? { ...item, quantity: Math.min(99, item.quantity + delta) }
+            : item
         )
         .filter((item) => item.quantity > 0)
     );
@@ -636,7 +648,14 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
               {store.name} · {store.openingHours}
             </span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-4">
+            <a
+              href={`${import.meta.env.BASE_URL}Privacidade.html`}
+              className="inline-flex items-center gap-1.5 text-slate-400 hover:text-orange-400 transition-colors py-1"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" aria-hidden="true" />
+              <span>Política de Privacidade</span>
+            </a>
             <button
               type="button"
               onClick={onSwitchToAdmin}
@@ -753,6 +772,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
                 <input
                   id="dish-obs-input"
                   type="text"
+                  maxLength={300}
                   value={dishObs}
                   onChange={(e) => setDishObs(e.target.value)}
                   placeholder="Ex.: Sem cebola, pouco arroz, feijão separado..."
@@ -775,7 +795,7 @@ export const PublicMenuPage: React.FC<PublicMenuPageProps> = ({
                   </span>
                   <button
                     type="button"
-                    onClick={() => setDishQty((q) => q + 1)}
+                    onClick={() => setDishQty((q) => Math.min(99, q + 1))}
                     aria-label="Aumentar quantidade"
                     className="min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-200 hover:text-white"
                   >

@@ -45,25 +45,21 @@ export function handleFirestoreError(
   path: string | null
 ): never {
   const currentUser = auth.currentUser;
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: currentUser?.uid ?? null,
-      email: currentUser?.email ?? null,
-      emailVerified: currentUser?.emailVerified ?? null,
-      isAnonymous: currentUser?.isAnonymous ?? null,
-      tenantId: currentUser?.tenantId ?? null,
-      providerInfo:
-        currentUser?.providerData?.map((provider) => ({
-          providerId: provider.providerId,
-          email: provider.email,
-        })) ?? [],
-    },
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  const errCode =
+    typeof (error as { code?: unknown })?.code === 'string'
+      ? (error as { code: string }).code
+      : undefined;
+
+  const sanitizedSummary = {
+    error: errCode ? `${errCode}: ${rawMessage}` : rawMessage,
     operationType,
     path,
+    signedIn: Boolean(currentUser),
   };
-  console.error('Firestore Error:', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+
+  console.error('Firestore Error:', JSON.stringify(sanitizedSummary));
+  throw new Error(JSON.stringify(sanitizedSummary));
 }
 
 export async function testConnection(): Promise<boolean> {

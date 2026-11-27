@@ -52,7 +52,17 @@ export function resolveBundledAssetUrl(rawUrl?: string): string {
   const trimmed = rawUrl.trim();
   if (!trimmed) return '';
 
-  if (/^(data|blob):/i.test(trimmed)) {
+  if (/^(javascript|vbscript|file):/i.test(trimmed)) {
+    return '';
+  }
+
+  if (/^data:/i.test(trimmed)) {
+    return /^data:image\/(png|jpe?g|webp|gif|avif);base64,/i.test(trimmed)
+      ? trimmed
+      : '';
+  }
+
+  if (/^blob:/i.test(trimmed)) {
     return trimmed;
   }
 

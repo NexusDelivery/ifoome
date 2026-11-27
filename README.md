@@ -140,11 +140,13 @@ As especificações detalhadas do MVP estão documentadas nos seguintes arquivos
 - [`PRD.md`](./PRD.md) — Requisitos funcionais (Cardápio, Pedidos, Resumo Diário e IA complementar), requisitos não funcionais e matriz de priorização.
 - [`Regras-de-Negocio.md`](./Regras-de-Negocio.md) — Regras de disponibilidade, loja aberta/fechada, taxa de entrega vs. retirada, validações de pedido, ciclo de status e cálculo de vendas.
 - [`Fluxos-do-Usuario.md`](./Fluxos-do-Usuario.md) — Jornadas passo a passo do proprietário (Seu Raimundo) e do cliente, além dos fluxos de exceção.
+- [`Testes.md`](./Testes.md) — Relatório de QA e Privacidade da Etapa 5 com cenários testados, problemas corrigidos e limitações documentadas.
+- [`Privacidade.html`](./Privacidade.html) — Página pública de Política de Privacidade e Proteção de Dados acessível pelo rodapé do cardápio e pela tela de finalização.
 
 ### Definições padrão consolidadas para o MVP
 - **Status dos pedidos:** `Recebido` → `Em preparo` → `Saiu para entrega` *(ou `Pronto para retirada` quando retirada no local)* → `Concluído` / `Cancelado`.
-- **Categorias iniciais do cardápio:** `Marmitas`, `Pratos do Dia`, `Acompanhamentos`, `Bebidas`, `Sobremesas`.
-- **Formas de pagamento aceitas:** `Pix`, `Dinheiro` (com campo opcional de troco) e `Cartão (Débito/Crédito)` no ato da entrega/retirada.
+- **Categorias do cardápio:** `Marmitas`, `Pratos Executivos`, `Porções`, `Bebidas`, `Sobremesas`.
+- **Formas de pagamento aceitas:** `Pix`, `Dinheiro` (com campo opcional de troco validado) e `Cartão` no ato da entrega/retirada.
 - **Entrega e retirada:** Entrega com taxa fixa configurável (padrão inicial: `R$ 5,00`) e endereço obrigatório; Retirada no local gratuita (`R$ 0,00`) sem exigência de endereço.
 
 ---
@@ -170,54 +172,59 @@ As especificações detalhadas do MVP estão documentadas nos seguintes arquivos
 ## 12. Implementação Funcional e Assistente de IA (Etapa 3 — AI Builder)
 
 ### Funcionalidades Integradas em Operação
-- **Cardápio Digital & Gestão de Produtos:** cadastro, edição, upload local/link de fotografia, categorias, validações de nome/preço, alternância de disponibilidade em 1 toque e reflexão imediata na vitrine pública.
-- **Fluxo Público de Compra:** exibição exclusiva de pratos disponíveis, modal de detalhes com observações por item, sacola sincronizada em tempo real com preços e disponibilidade vigentes, checkout completo (Entrega com endereço obrigatório vs. Retirada gratuita; Pix, Dinheiro com troco validado e Cartão) e confirmação com código próprio.
-- **Painel de Pedidos & Transições Seguras:** acompanhamento detalhado dos pedidos, atualização de status (`Recebido` → `Em preparo` → `Saiu para entrega` / `Pronto para retirada` → `Concluído`, além de `Cancelado`) com bloqueio de transições incoerentes.
-- **Dashboard em Tempo Real:** indicadores calculados dinamicamente a partir dos pedidos registrados (*Pedidos recebidos no dia*, *Total vendido no dia* sem somar cancelados, *Aguardando atendimento*, *Pedidos em preparo*, *Enviados para entrega* e *Pedidos recentes*).
-- **WhatsApp Complementar:** configuração do número comercial do restaurante nas Configurações e geração de link pronto (`wa.me`) + opção de copiar resumo do pedido na confirmação, com envio iniciado exclusivamente pelo usuário.
-- **Assistente de IA para Descrições (`server.ts`):** rota server-side `POST /api/ai/describe-dish` usando `@google/genai` (`gemini-4-hydrogen`) para sugerir descrições comerciais editáveis a partir do nome e ingredientes, sem expor chave de API no navegador e com tratamento explícito de indisponibilidade/erros.
+- **Cardápio Digital & Gestão de Produtos:** cadastro, edição, upload para Firebase Storage ou link de fotografia, categorias, validações de nome/preço/URL, alternância de disponibilidade em 1 toque e reflexão imediata na vitrine pública.
+- **Fluxo Público de Compra:** exibição exclusiva de pratos disponíveis, modal de detalhes com observações por item, sacola sincronizada em tempo real com preços e disponibilidade vigentes, preenchimento automático local opcional do cliente (*com opção de limpar dados salvos*), checkout completo (Entrega com endereço obrigatório vs. Retirada gratuita; Pix, Dinheiro com troco validado e Cartão) e confirmação com código próprio.
+- **Painel de Pedidos, Notificações e Transições Seguras:** acompanhamento em tempo real com notificações do navegador e alerta sonoro para novos pedidos, atalho por clique na notificação para abrir o pedido correspondente, atualização de status (`Recebido` → `Em preparo` → `Saiu para entrega` / `Pronto para retirada` → `Concluído`, além de `Cancelado`) com bloqueio de transições incoerentes e modal opcional para avisar o cliente via WhatsApp.
+- **Dashboard em Tempo Real:** indicadores calculados dinamicamente a partir dos pedidos registrados (*Pedidos recebidos no dia*, *Total vendido no dia* sem somar cancelados nem datas anteriores, *Aguardando atendimento*, *Pedidos em preparo*, *Enviados para entrega* e *Pedidos recentes*).
+- **WhatsApp Complementar:** configuração do número comercial do restaurante nas Configurações, link pronto (`wa.me`) + cópia do resumo na confirmação do cliente e envio opcional de atualizações de status ao cliente a partir do painel administrativo.
+- **Assistente de IA para Descrições (`server.ts`):** rota server-side `POST /api/ai/describe-dish` usando `@google/genai` (`gemini-4-hydrogen` com fallback) para sugerir descrições comerciais editáveis a partir do nome e ingredientes, sem expor chave de API no navegador e com tratamento explícito de indisponibilidade/erros.
 
 ### Recursos Dependentes de Integração Externa
-- **Chave da API de IA (`GEMINI_API_KEY`):** a geração de descrições por IA depende da variável `GEMINI_API_KEY` configurada no ambiente do servidor; caso ausente, o cadastro e a edição manual dos pratos continuam operando normalmente.
+- **Chave da API de IA (`GEMINI_API_KEY`):** a geração de descrições por IA depende de servidor Node.js (`server.ts`) com a variável `GEMINI_API_KEY` configurada; em hospedagem estática (como GitHub Pages) ou quando ausente, o cadastro e a edição manual dos pratos continuam operando normalmente.
 
 ---
 
 ## 13. Publicação Automática (GitHub Pages)
 
-O projeto está configurado para publicação contínua no **GitHub Pages** via GitHub Actions (`.github/workflows/deploy.yml`) a partir da branch `develop`:
+O projeto está configurado para publicação contínua no **GitHub Pages** via GitHub Actions (`.github/workflows/deploy.yml`) a partir da branch `main` (e acionamento manual via `workflow_dispatch`):
 
-- **Frontend estático (`Vite`):** o workflow executa `npm run lint` e `npm run build` utilizando `VITE_BASE_PATH` configurado automaticamente pelo `actions/configure-pages`, copiando `dist/index.html` para `dist/404.html` como fallback de SPA.
+- **Frontend estático (`Vite`):** o workflow executa `npm run lint` e `npm run build` utilizando `VITE_BASE_PATH` configurado automaticamente pelo `actions/configure-pages`, emitindo `dist/index.html` e `dist/Privacidade.html` (e copiando `dist/index.html` para `dist/404.html` como fallback de SPA).
 - **Firebase:** mantenha o domínio publicado do GitHub Pages adicionado em **Authentication → Settings → Authorized domains** no Console do Firebase para que o login com Google funcione em produção.
 
 ---
 
-## 14. Integração Técnica, Persistência e Segurança (Etapa 4 — Tech Lead)
+## 14. Integração Técnica, Persistência, Privacidade e QA (Etapas 4 e 5)
 
 ### Serviços Firebase Utilizados
-A aplicação está conectada ao projeto Firebase existente **`i-foome-delivery`** (configuração pública do SDK web em `firebase-applet-config.json`), utilizando:
+A aplicação está conectada ao projeto Firebase **`i-foome-delivery`** (configuração pública do SDK web em `firebase-applet-config.json`), utilizando:
 
 1. **Cloud Firestore** *(banco de dados nomeado configurado em `firebase-applet-config.json`)*:
-   - **Finalidade:** persistência em nuvem e sincronização em tempo real do cadastro do restaurante, cardápio de produtos, fila de pedidos e configuração de senha administrativa (`salt` + hash SHA-256).
+   - **Finalidade:** persistência em nuvem e sincronização em tempo real do cadastro do restaurante, cardápio de produtos, fila de pedidos e controle de acesso administrativo (`admins`, `adminSecurity/meta` e `adminSecurity/config`).
 2. **Firebase Storage**:
    - **Finalidade:** armazenar fotografias dos pratos e o logotipo do estabelecimento fora dos documentos do Firestore (com compressão automática no navegador antes do envio e remoção automática do arquivo anterior ao substituir ou excluir um prato/imagem).
+3. **Firebase Authentication**:
+   - **Finalidade:** autenticação do proprietário/administradores via conta Google ou e-mail/senha antes de liberar qualquer leitura ou escrita administrativa no painel.
 
 ### Estrutura Geral dos Dados (Firestore)
 - `restaurants/{restaurantId}` *(documento padrão `default`)*:
-  - `id`, `name`, `logoUrl`, `logoStoragePath`, `phone`, `address`, `openingHours`, `deliveryFee`, `paymentMethods`, `isOpen`, `updatedAt`.
+  - `id`, `name`, `subtitle`, `logoUrl`, `logoStoragePath`, `phone`, `address`, `openingHours`, `deliveryEstimate`, `deliveryFee`, `paymentMethods`, `isOpen`, `updatedAt`.
 - `products/{productId}`:
   - `id`, `name`, `description`, `ingredients`, `price`, `imageUrl`, `imageStoragePath`, `category`, `available`, `createdAt`, `updatedAt`.
   - Produtos desativados (`available: false`) não são exibidos na vitrine pública do cardápio.
 - `orders/{orderId}`:
-  - `id`, `code`, `createdAt`, `updatedAt`, `customerName`, `customerPhone`, `items` *(snapshot imutável de `productId`, `name`, `unitPrice` no momento da compra, `quantity`, `observation`)*, `modality` (`entrega` ou `retirada`), `address`, `paymentMethod`, `changeFor`, `subtotal`, `deliveryFee`, `total`, `status`.
+  - `id`, `code`, `createdAt`, `updatedAt`, `customerName`, `customerPhone`, `items` *(snapshot imutável de `productId`, `name`, `unitPrice` no momento da compra, `quantity`, `observation`)*, `modality` (`entrega` ou `retirada`), `address`, `paymentMethod`, `changeFor`, `generalObservation`, `subtotal`, `deliveryFee`, `total`, `status`, `isDemo`.
   - Pedidos com status `Cancelado` são excluídos do somatório de vendas concluídas no painel.
-- `adminSecurity/meta` e `adminSecurity/config`:
-  - Armazenam respectivamente o *salt* + versão da senha administrativa e o hash SHA-256 da senha atual, permitindo validação e alteração da senha diretamente no painel sem expor a senha em texto puro.
+- `admins/{uid}`, `adminSecurity/meta` e `adminSecurity/config`:
+  - Armazenam respectivamente o vínculo de administrador autenticado e o *salt* + hash SHA-256 + versão da senha administrativa do painel, permitindo alteração de senha dentro de **Configurações** sem expor senhas em texto puro.
 
-### Autenticação e Segurança
-- **Acesso administrativo por senha (MVP):** o link para a área administrativa fica posicionado de forma discreta no rodapé da vitrine pública (*Área do estabelecimento*), exigindo apenas a senha administrativa (com instrução visível na tela de login para avaliadores e opção de alteração dentro de **Configurações**), sem necessidade de login Google ou cadastro prévio.
+### Autenticação, Segurança e Privacidade
+- **Acesso administrativo protegido:** o link discreto no rodapé (*Área do estabelecimento*) exige autenticação no Firebase Authentication combinada à verificação de permissão administrativa (`admins/{uid}` e/ou senha administrativa configurada).
 - **Regras de segurança (`firestore.rules` e `storage.rules`):**
-  - Validam esquema completo dos documentos, tamanhos máximos de campos, tipos, timestamps do servidor (`request.time`), limites de consulta, transições válidas de status dos pedidos e bloqueio de exclusões indevidas em pedidos e configurações.
-  - Nenhum segredo privado ou credencial administrativa é armazenado na documentação.
+  - Validam esquema completo dos documentos, tamanhos máximos de campos, tipos, timestamps do servidor (`request.time`), limites de consulta (`<= 200`), transições válidas de status dos pedidos, bloqueio de leitura pública de pedidos e bloqueio de exclusões indevidas.
+  - Nenhum segredo privado ou credencial administrativa é armazenado em código público ou na documentação.
+- **Privacidade e QA (Etapa 5):**
+  - Página dedicada [`Privacidade.html`](./Privacidade.html) com link no rodapé e resumo claro na tela de finalização de pedido.
+  - Relatório completo de testes, validações e limitações documentadas em [`Testes.md`](./Testes.md).
 
 ### Orientações para Configuração e Execução Local
 1. **Pré-requisitos:** Node.js 20+ (recomendado Node 22/24) e dependências instaladas.
@@ -236,19 +243,22 @@ A aplicação está conectada ao projeto Firebase existente **`i-foome-delivery`
    ```bash
    npm run lint
    npm run build
+   npx eslint firestore.rules
    ```
 
 ### Configurações Externas Pendentes no Console do Firebase
-Para o funcionamento completo dos uploads de imagem e da IA em ambiente externo:
+Para o funcionamento completo em ambiente de produção:
 
-1. **Firebase Storage:**
-   - Caso ainda não tenha sido inicializado no Console do projeto `i-foome-delivery`, ative o serviço **Storage** e publique as regras contidas no arquivo `storage.rules` deste repositório.
-2. **Primeiro acesso ao painel administrativo:**
-   - No primeiro acesso com o banco vazio, abra **Área do estabelecimento** e autentique-se com uma conta autorizada para inicializar os dados do restaurante e o cardápio inicial no Firestore.
-3. **Assistente de IA (`GEMINI_API_KEY`):**
-   - No servidor local (`server.ts`), configure a variável de ambiente `GEMINI_API_KEY`. No GitHub Pages (hospedagem estática), o cadastro e a edição manual dos pratos continuam operando normalmente sem backend Node.js.
+1. **Publicação das regras e Firebase Storage:**
+   - Garantir que `firestore.rules` e `storage.rules` estejam publicadas no projeto `i-foome-delivery` e que o serviço **Storage** esteja ativado no Console.
+2. **Domínios autorizados no Authentication:**
+   - Adicionar o domínio de publicação (ex.: GitHub Pages) em **Authentication → Settings → Authorized domains**.
+3. **Senha administrativa definitiva e primeiro acesso:**
+   - No primeiro acesso com o banco vazio, autenticar-se com uma conta autorizada para inicializar os dados do restaurante e alterar a senha administrativa inicial na aba **Configurações**.
+4. **Assistente de IA (`GEMINI_API_KEY`):**
+   - No servidor local (`server.ts`), configurar `GEMINI_API_KEY`. No GitHub Pages (hospedagem estática), o cadastro e a edição manual dos pratos continuam operando normalmente sem backend Node.js.
 
 ---
 
-*Este documento serve como referência central de contexto para todas as etapas do desenvolvimento do **iFoome Delivery** e deverá ser atualizado conforme novas decisões forem consolidadas, preservando os princípios estabelecidos desde a concepção.*
+*Este documento serve como referência central de contexto para todas as etapas do desenvolvimento do **iFoome Delivery** e reflete o estado consolidado do MVP após a etapa final de QA e Privacidade.*
 

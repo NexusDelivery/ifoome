@@ -19,7 +19,7 @@ function getConfiguredApiKey(): string | null {
 
 async function startServer() {
   const app = express();
-  app.use(express.json({ limit: '1mb' }));
+  app.use(express.json({ limit: '16kb' }));
 
   app.get('/api/health', (_req: Request, res: Response) => {
     res.json({
@@ -45,6 +45,14 @@ async function startServer() {
       res.status(400).json({
         error:
           'Informe o nome do prato e os ingredientes principais para gerar uma descrição.',
+      });
+      return;
+    }
+
+    if (dishName.length > 120 || ingredients.length > 400 || category.length > 60) {
+      res.status(400).json({
+        error:
+          'Os textos informados excedem o limite permitido para geração da descrição.',
       });
       return;
     }
@@ -214,7 +222,8 @@ async function startServer() {
       }
 
       res.status(500).json({
-        error: `Falha de comunicação com o assistente de IA (código ${status}). Você pode tentar novamente ou digitar a descrição manualmente.`,
+        error:
+          'Falha temporária de comunicação com o assistente de IA. Você pode tentar novamente ou digitar a descrição manualmente.',
       });
     }
   });

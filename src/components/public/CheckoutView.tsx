@@ -7,6 +7,7 @@ import {
   CreditCard,
   Loader2,
   MapPin,
+  ShieldCheck,
   ShoppingBag,
   Trash2,
 } from 'lucide-react';
@@ -195,8 +196,10 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     }
 
     if (modality === 'entrega') {
-      if (!street.trim() || !number.trim() || !neighborhood.trim()) {
-        setErrorMsg('Preencha Rua, Número e Bairro para entrega.');
+      if (street.trim().length < 2 || !number.trim() || neighborhood.trim().length < 2) {
+        setErrorMsg(
+          'Preencha Rua (mín. 2 letras), Número e Bairro (mín. 2 letras) para entrega.'
+        );
         return;
       }
     }
@@ -204,9 +207,9 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
     let parsedChangeFor: number | undefined;
     if (paymentMethod === 'Dinheiro' && changeForText.trim() !== '') {
       const val = Number(changeForText.replace(',', '.'));
-      if (Number.isNaN(val) || val < total) {
+      if (Number.isNaN(val) || val < total || val > 100000) {
         setErrorMsg(
-          `Se precisar de troco, o valor informado deve ser maior ou igual ao total (${formatCurrency(total)}).`
+          `Se precisar de troco, o valor informado deve estar entre ${formatCurrency(total)} e R$ 100.000,00.`
         );
         return;
       }
@@ -307,6 +310,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   id="checkout-name"
                   type="text"
                   required
+                  maxLength={100}
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="Ex.: Maria Clara"
@@ -401,6 +405,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     id="checkout-street"
                     type="text"
                     required
+                    maxLength={140}
                     value={street}
                     onChange={(e) => setStreet(e.target.value)}
                     placeholder="Ex.: Rua das Acácias"
@@ -419,6 +424,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     id="checkout-number"
                     type="text"
                     required
+                    maxLength={30}
                     value={number}
                     onChange={(e) => setNumber(e.target.value)}
                     placeholder="123"
@@ -437,6 +443,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                     id="checkout-neighborhood"
                     type="text"
                     required
+                    maxLength={100}
                     value={neighborhood}
                     onChange={(e) => setNeighborhood(e.target.value)}
                     placeholder="Vila Nova"
@@ -454,6 +461,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                   <input
                     id="checkout-complement"
                     type="text"
+                    maxLength={120}
                     value={complement}
                     onChange={(e) => setComplement(e.target.value)}
                     placeholder="Apto 12, portão azul"
@@ -534,6 +542,7 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
               <textarea
                 id="checkout-obs"
                 rows={2}
+                maxLength={500}
                 value={generalObservation}
                 onChange={(e) => setGeneralObservation(e.target.value)}
                 placeholder="Ex.: Enviar talheres descartáveis, tocar interfone 102..."
@@ -619,6 +628,26 @@ export const CheckoutView: React.FC<CheckoutViewProps> = ({
                 {formatCurrency(total)}
               </span>
             </div>
+          </div>
+
+          <div className="rounded-xl bg-slate-800/50 border border-slate-800 p-3 flex items-start gap-2.5 text-xs text-slate-400 leading-relaxed">
+            <ShieldCheck className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" aria-hidden="true" />
+            <p>
+              <strong className="text-slate-200">Privacidade:</strong> seu nome,
+              telefone e endereço são usados apenas para preparar, entregar e
+              avisar sobre este pedido, sendo acessados somente pelo
+              restaurante. Para sua comodidade, os dados ficam salvos apenas neste
+              navegador.{' '}
+              <a
+                href={`${import.meta.env.BASE_URL}Privacidade.html`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-orange-400 hover:underline font-semibold"
+              >
+                Saiba mais
+              </a>
+              .
+            </p>
           </div>
 
           <button

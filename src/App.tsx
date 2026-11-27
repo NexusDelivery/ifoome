@@ -58,6 +58,7 @@ function AppContent() {
     order: Order;
     nextStatus: OrderStatus;
   } | null>(null);
+  const [adminActionError, setAdminActionError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<Error | null>(null);
 
   const ordersHydratedRef = useRef(false);
@@ -216,7 +217,14 @@ function AppContent() {
   const availableProductsCount = adminProducts.filter((p) => p.available).length;
 
   const handleToggleStoreOpen = async () => {
-    await dataStore.saveStore({ ...store, isOpen: !store.isOpen });
+    setAdminActionError(null);
+    try {
+      await dataStore.saveStore({ ...store, isOpen: !store.isOpen });
+    } catch {
+      setAdminActionError(
+        'Não foi possível atualizar o status de abertura da loja no Firebase.'
+      );
+    }
   };
 
   const handleUpdateOrderStatus = async (
@@ -227,8 +235,15 @@ function AppContent() {
     if (!target || !canTransitionOrderStatus(target.status, nextStatus)) {
       return;
     }
-    await dataStore.updateOrderStatus(orderId, nextStatus);
-    setWhatsappPrompt({ order: target, nextStatus });
+    setAdminActionError(null);
+    try {
+      await dataStore.updateOrderStatus(orderId, nextStatus);
+      setWhatsappPrompt({ order: target, nextStatus });
+    } catch {
+      setAdminActionError(
+        'Não foi possível atualizar o status do pedido. Verifique sua conexão e permissões.'
+      );
+    }
   };
 
   const handleSaveProduct = async (
@@ -243,11 +258,25 @@ function AppContent() {
     productId: string,
     nextAvailable: boolean
   ) => {
-    await dataStore.toggleProductAvailability(productId, nextAvailable);
+    setAdminActionError(null);
+    try {
+      await dataStore.toggleProductAvailability(productId, nextAvailable);
+    } catch {
+      setAdminActionError(
+        'Não foi possível alterar a disponibilidade do prato no Firebase.'
+      );
+    }
   };
 
   const handleDeleteProduct = async (product: Product) => {
-    await dataStore.deleteProduct(product);
+    setAdminActionError(null);
+    try {
+      await dataStore.deleteProduct(product);
+    } catch {
+      setAdminActionError(
+        'Não foi possível excluir o prato. Verifique sua conexão e permissões.'
+      );
+    }
   };
 
   const handleSaveStoreSettings = async (
@@ -390,6 +419,22 @@ function AppContent() {
       onSwitchToPublic={() => setArea('public')}
       onLockAdmin={handleSignOut}
     >
+      {adminActionError && (
+        <div
+          role="alert"
+          className="mb-4 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-red-950/60 border border-red-500/40 text-sm text-red-200"
+        >
+          <span>{adminActionError}</span>
+          <button
+            type="button"
+            onClick={() => setAdminActionError(null)}
+            className="text-xs font-semibold text-red-300 hover:text-white underline shrink-0"
+          >
+            Fechar
+          </button>
+        </div>
+      )}
+
       {adminTab === 'dashboard' && (
         <AdminDashboard
           orders={orders}

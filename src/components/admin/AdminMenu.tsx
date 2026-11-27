@@ -127,22 +127,27 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
     const trimmedName = form.name.trim();
     const parsedPrice = Number(form.priceText.replace(',', '.'));
 
-    if (trimmedName.length < 2) {
-      setFormError('Informe um nome válido para o prato (pelo menos 2 caracteres).');
+    if (trimmedName.length < 2 || trimmedName.length > 120) {
+      setFormError('Informe um nome válido para o prato (entre 2 e 120 caracteres).');
       return;
     }
     if (!CATEGORIES.includes(form.category)) {
       setFormError('Selecione uma categoria válida.');
       return;
     }
-    if (Number.isNaN(parsedPrice) || parsedPrice <= 0) {
-      setFormError('Informe um preço válido maior que R$ 0,00.');
+    if (Number.isNaN(parsedPrice) || parsedPrice <= 0 || parsedPrice > 10000) {
+      setFormError('Informe um preço válido entre R$ 0,01 e R$ 10.000,00.');
       return;
     }
-    if (form.imageUrl.trim().startsWith('data:')) {
+    const trimmedImageUrl = form.imageUrl.trim();
+    if (trimmedImageUrl.startsWith('data:')) {
       setFormError(
         'Envie a fotografia pelo botão "Enviar foto" (Firebase Storage) ou escolha uma URL/foto padrão para evitar arquivos pesados no banco.'
       );
+      return;
+    }
+    if (/^(javascript|vbscript|file):/i.test(trimmedImageUrl)) {
+      setFormError('Informe um endereço de imagem válido.');
       return;
     }
 
@@ -445,6 +450,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                   id="dish-name"
                   type="text"
                   required
+                  maxLength={120}
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Ex.: Marmita de Frango Grelhado"
@@ -506,6 +512,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 <input
                   id="dish-ingredients"
                   type="text"
+                  maxLength={400}
                   value={form.ingredients}
                   onChange={(e) => setForm({ ...form, ingredients: e.target.value })}
                   placeholder="Ex.: Arroz, feijão, frango grelhado e salada"
@@ -557,6 +564,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 <textarea
                   id="dish-description"
                   rows={3}
+                  maxLength={500}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Descreva o prato de forma apetitosa ou use o assistente de IA acima para sugerir um texto..."
@@ -624,6 +632,7 @@ export const AdminMenu: React.FC<AdminMenuProps> = ({
                 <input
                   id="dish-image"
                   type="text"
+                  maxLength={2048}
                   value={form.imageUrl}
                   onChange={(e) =>
                     setForm({
